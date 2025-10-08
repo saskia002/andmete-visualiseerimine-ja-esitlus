@@ -1,0 +1,563 @@
+---
+title: "Praktikum 5 - R alused"
+output: html_notebook
+---
+
+## R kui kalkulaator
+
+Kõige lihtsam viis R-i kasutada on temaga lihtsalt arvutusi teha.
+
+```{r}
+5 + 7 
+25 ** 2 
+1 / 2
+1 / 0 
+0 / 0
+
+x = 5
+```
+
+```{r}
+
+```
+
+ctrl alt i teeb uue koodi akna
+
+shift enter paneb uue rea koodiblokist välja
+
+ctrl enter jooksutab 1 rea
+
+ctrl shift enter jooksutab terve koodibloki
+
+Kohe on kasutajale kättesaadavad ka peamised matemaatilised funktsioonid ja konstandid.
+
+```{r}
+2 + sqrt(375769) - 25^2 # astendamismärgina võib kasutada nii ^ kui ka **, nt 2**3 
+sin(pi/6) + acosh(1) 
+log(exp(1)) 
+sqrt(-1+0i) 
+factorial(6) / choose(4, 2) 
+```
+
+Kasutatud matemaatilised funktsioonid on näited R-s defineeritud käskudest, mida kutsutakse välja nende nime ja järgnevate sulgudega. Sulgude sisse lisatakse funktsiooni argumendid. Argumendi nimed võib, kuid ei pea välja kirjutama, kui anda argumendi väärtused ette õiges järjekorras. Näiteks järgnevad käsud annavad sama tulemuse.
+
+```{r}
+log(x = 25, base = 5) 
+log(25, 5) 
+```
+
+## Abi R-s
+
+Tihtipeale ei pea kõiki argumente määrama, sest nendel on määratud vaikimisi väärtused. Selleks, et aru saada kuidas mõni funktsioon töötab tasub vaadata konkreetse funktsiooni abi lehekülgi. Neile saab ligi kirjutades funktsiooni ette `?`. Näiteks.
+
+```{r}
+?log
+```
+
+Abilehed tekivad kõrvalaknasse. Help failil on mitu standardset osa millest on erinevate küsimuste puhul abi.
+
+-   **Usage:** siin on funktsiooni väljakutse koos kõigi parameetritega. Juhul kui konkreetsele parameetrile on defineeritud vaikeväärtus, siis on see kirjas parameetri järel pärast võrdusmärki.
+
+-   **Arguments:** kirjeldab parameetri tähendust.
+
+-   **Details:** annab funktsiooni implementatsiooni detailid.
+
+-   **Examples:** näited mida üldiselt võib kohe läbi jooksutada. **Uue funktsiooni tundma õppimisel on näidete sektsioon tihtipeale kõige suuremaks abiks**, sest nii on lihtsama saada aru sisendi ja väljundi oodatavast kujust.
+
+### Ülesanne 1
+
+-   Mida teeb funktsioon `rm`?
+
+-   Proovi läbi üks näide funktsioonist `rm`?
+
+```{r}
+?rm
+
+```
+
+```{r}
+rm(x)
+```
+
+## Muutujad
+
+Loomulikult nagu programmeerimisekeelele kohane saab R-s defineerida ka muutujaid.
+
+```{r}
+kaal = 80 
+pikkus = 180
+bmi = kaal / (pikkus / 100)^2 
+
+bmi2 <- bmi**2
+
+bmi
+
+jah = TRUE
+ei = F
+
+jah
+ei
+```
+
+Muutujatele ei pea ette tüüpi, selle arvab R ise ära. Olulisemaid muutuja tüüpe ei ole väga palju:
+
+-   `logical` - tõeväärtuste hoidmiseks (väärtused `TRUE`/`FALSE`),
+
+-   `numeric` - kõik reaalarvud, sealhulgas täisarvud,
+
+-   `character` - sõned (sisestamisel panna jutumärkide vahele).
+
+Ühest tüübist teise teisendamiseks on mõeldud funktsioonid `as.<tüübi nimi>`. Näiteks saab tihti veateateid, kui tehteid tehakse valest tüübist muutujatega.
+
+```{r}
+"5" + 5
+```
+
+Kasutades tüübiteisendusi saab neist üle.
+
+```{r}
+as.numeric("5") + 5
+```
+
+### Ülesanne 2
+
+-   Kas tõeväärtusi saab liita?
+
+-   Milline on TRUE numbriline väärtus?
+
+```{r}
+TRUE + TRUE
+TRUE - TRUE
+
+TRUE - FALSE
+F - T
+
+FALSE + FALSE
+FALSE - FALSE
+```
+
+## Funktsioonide defineerimine
+
+Me enne nägime, et on võimalik kasutada ette antud funktsioone. Kuid neid on ka lihtne defineerida järgneva süntaksiga.
+
+``` r
+<funktsiooni nimi> = function(<argumentide nimekiri>){ 
+     <argumentidega tehtavad operatsioonid> 
+     return(<tagastatav väärtus>) 
+} 
+```
+
+Näiteks võime defineerida kehamassi indeksi arvutamise funktsiooni.
+
+```{r}
+bmi = function(kaal, pikkus = 180){
+  res = kaal / (pikkus / 100) ** 2
+  
+  return(res)
+}
+
+bmi(85)
+bmi(85, 195)
+```
+
+## Lisapaketid
+
+Paljud R-i lisafunktsioonid on pakendatud pakettidesse, mis tuleb kasutamiseks eraldi laadida käsuga `library`. Näiteks funktsioon `as_date` on lisapaketis `lubridate`, mille peab enne kasutamist sisse lugema.
+
+```{r}
+#as_date("2012-01-01")
+
+library(lubridate) 
+
+as_date("2012-01-01")
+```
+
+Enamus pakette mis asuvad keskses repositooriumis CRAN-s, saab R-s installida kas käsuga `install.packages` konsoolilt või Packages saki alt paremal alumises aknas RStudios (kui vaja valige Install from: Repository (CRAN)).
+
+### Ülesanne 3
+
+-   Installi pakett `tidyverse` ja loe see sisse.
+
+```{r}
+library(tidyverse)
+```
+
+## Vektorid
+
+Keskne objektitüüp R-s on vektor (sarnane 1D `numpy array`-ga). mis on teisisõnu ühe mõõtmeline sama tüüpi muutujate järjestus. Vektorite loomiseks on mitmeid viise.
+
+```{r}
+1:10 # Järjest numbrid 
+9:2 # Tagurpidi järjestus
+c(1, 4, 2, 6) # Suvaliste elementide järjestus
+c(1:10, 4, c(2, 4)) # Argumendid võivad olla nii vektori kui üksikud väärtused
+c("A", "B", "C") # Vektorisse võib panna ka sõnesid
+seq(0, 1, length.out = 10) # Suvalise algus- ja lõpppunktiga võrdse vahemikuga jadad
+rep(1:2, times = 5)
+```
+
+fnc "c" tähendab combine!!! c(1, 2) loob 1d array (vektori) [1, 2]
+
+Andmete eraldamine vektorist käib kandiliste sulgudega. Tasub meelde jätta et **R-s algab indekseerimine 1-st.**
+
+```{r}
+x = 10:1
+x[1]
+x[1:5]
+```
+
+Tegelikult käsitletakse R-s isegi ühe väärtusega objekte vektoritena. Seega pole suurt vahet kas tehetes on vektor või üksikud väärtused. Vektori puhul tehakse tehteid elemendi kaupa. Kui sisendiks on erineva pikkusega vektorid siis lühemat korratakse nii kaua kui saaab pikemaga võrdseks. Sama loogika kehtib nii aritmeetiliste tehete kui ka paljude funktsioonide puhul.
+
+```{r}
+1:10 + 5 
+1:10 + 10:1
+log(c(1, 10, 100, 1000), base = 10)
+bmi(c(85, 90, 95, 100, 105), 194)
+```
+
+Paljude funktsioonide puhul muidugi oodataksegi vektorit ja tulemuseks on arv.
+
+```{r}
+min(1:10)
+max(1:10)
+mean(1:10)
+median(0:10)
+```
+
+### Ülesanne 4
+
+-   Defineeri funktsioon mis teisendab etteantud numbrilise vektori 0 ja 1 vahele, nii et minimaalne väärtus on 0 ja maksimaalne 1. Vihje: vektori *x* ja selle elemendi *xi* korral on valem järgmine *(xi - min(x))/(max(x) -min(x)).*
+
+-   Testi saadud funktsiooni, vektorite `0:10` ja `-5:5` peal. Kas tulemused on sarnased või erinevad?
+
+```{r}
+
+vektor_teisenda = function(vektor) {
+  
+  vastus =(vektor - min(vektor)) / (max(vektor) - min(vektor))
+  
+  return(vastus)
+}
+```
+
+```{r}
+
+vektor_teisenda(0:10)
+```
+
+## Andmetabelid
+
+Praktilise andmeanalüüsi puhul on andmed antud tabelites, kus veergudes on erinevat tüüpi tunnused. Säärane tabel on olulisel kohal ka R-s kus ajalooliselt on kasutatud `data.frame` nimelist objekti ja viimasel ajal rohkem `tibble` nimelist `data.frame` edasiarendust `tidyverse` paketist. Sellisest tabelist võib mõelda kui tunnusvektorite kogumist, kus kõik tunnusvektorid peavad olema ühepikkused.
+
+```{r}
+library(tidyverse) # peab tegema vaid korra sessiooni alguses
+
+moodud = tibble(
+  Nimi = c("Mari", "Jaana", "Peeter"),
+  Pikkus = c(155, 165, 190), 
+  Kaal = c(50, 60, 100), 
+  Sugu = c("N", "N", "M")
+)
+
+moodud
+```
+
+## Andmetabeli sisse lugemine erinevatest allikatest
+
+### Tekstifailid
+
+Andmetabeleid hoitakse enamasti tekstifailidena, kus veerud on kas tabulaatori, koma või semikooloniga eraldatud. Selliste failide lugemiseks saab kasutada `read_delim` käsku, kus tuleb kindlasti määrata failimi ja veergude eraldaja.
+
+```{r}
+mass = read_delim("massachusetts.csv", delim = ",")
+mass
+```
+
+```{r}
+mass = read_delim("massachusetts.csv", delim = "\t")
+mass
+```
+
+Kuna enamus faile on eraldatud kas tabulaatori või komaga, siis nende failide jaoks on ka shortcutid `read_tsv` ja `read_csv`.
+
+```{r}
+mass = read_csv("massachusetts.csv")
+
+mass
+```
+
+Kirjeldatud käsud teevad üldiselt päris head tööd, kuid siiski on failidel tihti omapärasid, näiteks on puuduvad väärtused imelikult märgitud, muutuja loetakse sisse vale tüübiga, jne. Nende probleemidega on võimalik tegeleda enamasti juba `read_*` käsu sees rakendades erinevaid parameetreid. Tasub lugeda nende funktsioonid abilehekülgi ja otsida näiteid kui hätta jääb.
+
+#### Ülesanne 5
+
+-   Loe sisse andmestik failist massachusetts.txt (see asub samas kataloogis kui praktikumi notebook).
+
+```{r}
+
+mass_txt = read_tsv("massachusetts.txt")
+
+mass_txt
+```
+
+### RData
+
+R tabelite salvestamine tekstifailidena ning nede hiljem sisselugemine võib põhjustada vigu. Kui mõni fail luuakse R-s ja hiljem ka R-s edasi töödeldakse on kasulik ta salvestada binaarse R objektina. Nii on teda väga lihtne hiljem sisse lugeda. Seda on võimalik saavutada käskudega `save` ja `load`. Käsule save võib ette anda ka mitu objekti.
+
+```{r}
+x = 1
+save(x, mass, file = "objects.RData")
+```
+
+Salvestatud objekti saab sisse lugeda käsuga `load`. Vaikimisi tekivad töökeskkonda sama nimega objektid nagu sai salvestatud. Et aru saada mis täpselt sisse loeti, tasub kasutada parameetrit `verbose`.
+
+```{r}
+load("objects.RData", verbose = T)
+```
+
+## Andmetabelite töötlemine tidyverse käskudega
+
+R-s on mitmeid viise kuidas andmeid saab töödelda, viimasel ajal on väga populaarseks saanud lähenemine mis on implementeeritud pakettide kogumikus ühise nimetajaga `tidyverse`. Võiks öelda, et tegu on lausa omamoodi alamkeelega R-i sees, mis laenab kontseptsioone erinveatest keeltest nagu `SQL` ja `bash` ning proovib paljud operatsioonid panna tööle ühiste printsiipide põhjal.
+
+### %\>%
+
+Üheks tähtsamaks käsuks tidyverse puhul on nn "toru" `%>%` mis võimaldab kirjutada pikkasid käskude jadasid loetavalt. Illustreerimaks selle kasulikkust vaatame järgmist näidet.
+
+```{r}
+prices = c("$1423.55", "$556.98", "$4321.99", "$657.01")
+
+prices_trim = str_replace(prices, "\\$", "")
+prices_trim_num = as.numeric(prices_trim) 
+prices_trim_num_round = round(prices_trim_num, digits = 0)
+prices_round_final = str_c("$", prices_trim_num_round)
+prices_round_final
+```
+
+Siin rakendame järjest mitmeid operatsioone ja salvestame kõik vahemuutujatesse millele peame nimesid mõtlema, mis on suhteliselt tüütu. Me võime sellise operatsioooni kirjutada ka ühel real.
+
+```{r}
+str_c("$", round(as.numeric(str_replace(prices, "\\$", "")), digits = 0))
+```
+
+Kuid sellist asja on väga raske lugeda. Sest funktsioone rakendatakse järjest seestpooolt väljapoole. Palju lihtsam oleks lugeda, kui funktsioonid liiguks rakendamise järjekorras vasakult paremale. See on just see mida operaator `%>%` teeb. Ta võimaldab kirjutada `f(g(x))`, kui `x %>% g() %>% f()`. Meie eelmine näide näeks välja järgnev.
+
+```{r}
+prices %>% str_replace("\\$", "") %>% as.numeric() %>% round() %>% str_c("$", .)
+```
+
+Pane tähele, et kui eelneva funktsiooni väljund peaks olema järgmises funktsiooni väljakutses esimesel positsioonil, siis võib selle ära jätta. Kui väljund peab minema mõnele teisele positsioonile, siis saab seda märkida kui `.` (vt viimane käsk).
+
+### Tidyverse funktsioonid
+
+Tidyverse on üles ehitatud funktsioonidel, millest igaüks võtab sisse andmetabeli ja annab välja modifitseeritud andmetabeli. Iga funktsioon teostab ainult ühte operatsiooni, aga kui neid operaatoriga %\>% järjest rakendada on võimalik saavutada väga palju. Peamised funktsioonid tidyverse pakettides on järgnevad:
+
+-   **select** - võimaldab valida andmetabeli veerge
+
+-   **filter -** võimaldab valida andmetabeli ridu
+
+-   **mutate** - võimaldab tekitada tabelisse uusi veergusid või modifitseerida vanu
+
+-   **group_by** ja **summarize** - võimaldavad summeerida väärtusi tunnuste poolt defineeritud gruppides
+
+-   **arrange** - võimaldab sorteerida tabelit ühe või mitme tunnuse järgi
+
+Järgnevalt vaatame iga funktsiooni ja mõnda kasutusnäidet täpsemalt kasutades andmestikku `mass`, mis sai sisse loetud eelnevalt.
+
+#### select
+
+`select` võimaldab andmetabeli veerge valida ja neid ka selle käigus ümber nimetada. Veergude nimed saab funktsioonile ette anda ilma jutumärkideta.
+
+```{r}
+mass %>% select(AGEP, SEX)
+```
+
+```{r}
+mass %>% select(Age = AGEP, Gender = SEX) # paneme ilusamad nimed
+```
+
+```{r}
+mass %>% select(-CIT, -AGEP) # Saame ka konkreetseid veerge välja visata
+```
+
+#### filter
+
+`filter` võimaldab ridu filtreerida seades loogilisi tingimusi veergudele. Sisendtabelis olevate veergude nimed tunneb `filter` automaatselt ära.
+
+```{r}
+mass %>% filter(AGEP < 20) # Vanus väiksem kui 20
+```
+
+```{r}
+mass %>% filter(CIT == "Not a citizen of the U.S.")
+```
+
+```{r}
+mass %>% filter(
+  CIT 
+    %in% 
+      c(
+        "U.S. citizen by naturalization", 
+        "Not a citizen of the U.S."
+      )
+  )
+```
+
+```{r}
+mass %>% filter(AGEP < 20 | CIT == "Not a citizen of the U.S.") 
+```
+
+#### mutate
+
+`mutate` võimaldab luua uusi veeraid vastavalt sellele kas veerg millele väärtus omistatakse juba eksiteerib või mitte. Nagu eelnevatelgi funktsioge või muuta olemasolevonidel `mutate` sees saab tehetel kasutada veerunimesid.
+
+```{r}
+mass %>% mutate(Old = AGEP > 60) %>% select(AGEP, Old)
+```
+
+```{r}
+mass %>% mutate(AGEP = AGEP + 1) 
+```
+
+#### summarize
+
+`summarize` on käsk mis võimaldab andmestikul kokkuvõtteid välja arvutada. Erinevalt `mutate` käsust tagastab ta ainult väljaarvutatud suurused ja mitte midagi muud.
+
+```{r}
+mass %>% summarize(MeanAge = mean(AGEP))
+```
+
+```{r}
+mass %>% summarize(MeanAge = mean(AGEP), MinAge = min(AGEP))
+```
+
+Funktsioon `n()` `summarize` sees ütleb kui mitu rida sisend tabelis on.
+
+```{r}
+mass %>% summarize(MeanAge = mean(AGEP), MinAge = min(AGEP), N = n())
+```
+
+```{r}
+mass %>% 
+  summarize(
+    MeanAge = mean(AGEP), 
+    MinAge = min(AGEP), 
+    MaxAge = max(AGEP), 
+    N = n()
+  );
+```
+
+#### group_by
+
+`group_by` võimaldab rakendada nn "*split-apply-combine*"strateegiat, kus andmestik tükeldatakse ühe või mitme tunnuse väärtus alusel alamandmestikeks, rakendatakse mingit funktsiooni alam-andmestikel ning tulemused kombineeritakse. Kui me oleme rakendanud käsku group_by andmestikule siis järgnevate käskude puhul just selline operatsioon toimubki.
+
+`group_by` ja `summarize` moodustavad kombinatsiooni, millega on võimalik tunnuste poolt defineeritud gruppide kaupa summeerida teiste muutujate väärtuseid. Tulemusse jäävad alles tunnused mille järgi grupeeriti ning `summarize` käsus defineeeritud tunnused. Grupeerida võib nii ühe kui mitme tunnuse järgi.
+
+```{r}
+mass %>% group_by(CIT) %>% summarize(AGEP = mean(AGEP))
+```
+
+```{r}
+mass %>% group_by(CIT, SEX) %>% summarize(AGEP = mean(AGEP))
+```
+
+Funktsioon `n()` `summarize` sees ütleb kui mitu tabeli rida konkreetsele grupeerivate tunnuste kombinatsioonile vastab. See on väga kasulik sagedustabelite tegemisel
+
+```{r}
+mass %>% group_by(CIT) %>% summarize(N = n())
+```
+
+```{r}
+mass %>% group_by(CIT, SEX) %>% summarize(AGEP = mean(AGEP), N = n())
+```
+
+Kui pärast group_by käsku rakenda mutate käsku. Siis mutate töötab jupikaupa group_by defineeritud alamhulkadel. Näiteks nii saame lisada igale reale grupikeskmise või järjekorra numbri grupi sees.
+
+```{r}
+mass %>% select(AGEP, SEX) %>% group_by(SEX) %>% mutate(MeanAgeGroup = mean(AGEP))
+```
+
+```{r}
+mass %>% select(AGEP, SEX) %>% group_by(SEX) %>% mutate(IdInGroup = 1:n())
+```
+
+#### arrange
+
+`arrange` lihtsalt sorteerib andmetabeli etteantud tunnus(t)e järgi.
+
+```{r}
+mass %>% arrange(AGEP) # Vaikimise väiksemast suuremaks
+```
+
+```{r}
+mass %>% select(AGEP, SEX) %>% arrange(AGEP, SEX)
+```
+
+```{r}
+# mass %>% arrange(desc(AGEP)) # Käsuga desc saab sorteerimise suuna ümber pöörata
+
+mass %>% arrange(-AGEP) # Käsuga desc saab sorteerimise suuna ümber pöörata
+```
+
+### Funktsioonide kombineerimine
+
+Olgugi, et iga funktsioon üksi teostab konkreetse lihtsa operatsiooni, võib neid üksteise järel ritta ladudes lahendada päris keerukaid probleeme. Näiteks siin leiame top 5 ametit tööealistele USAs ja väljaspool sündinud inimestele.
+
+```{r}
+mass %>% 
+  select(Age = AGEP, Citizenship = CIT, Occupation = OCCP) %>% 
+  filter(Age > 18 & Age < 65) %>% 
+  mutate(BornUS = Citizenship == "Born in the U.S.") %>% 
+  group_by(BornUS, Occupation) %>% 
+  summarize(N = n()) %>% 
+  group_by(BornUS) %>% 
+  mutate(Rank = rank(-N)) %>% 
+  filter(Rank <= 5) %>% 
+  arrange(BornUS, Rank)
+```
+
+### Ülesanded 6
+
+-   Kummal on kõrgem keskmine palk kas üle või alla 55 aastastel arstidel? (Kasuta tunnuseid WAGP - palk, AGEP - vanus, OCCP - amet, kategooria "MED-PHYSICIANS AND SURGEONS", W)
+
+-   Millise ameteid esindavad naised töötavad keskmiselt nädalas kõige kauem? Keskendu ainult ametitele, mida esindavaid naisi on andmestikus vähemal 10. (Kasuta tunnuseid AGEP - vanus, SEX - sugu väärtus "Female" , WKHP - nädalas tehtud töötunnid, OCCP - amet)
+
+-   Mis on täiskasvanud inimeste kõige kõrgema keskmise palgaga ametid Massachusettsi andmestiku kohaselt? Keskendu ainult ametitele, mille esindajaid on andmestikus vähemal 10. (Kasuta tunnuseid AGEP - vanus, WAGP - palk, OCCP - amet)
+
+```{r}
+
+mass %>% 
+  select(Age = AGEP, Occupation = OCCP, Wage = WAGP) %>% 
+  filter(Occupation == "MED-PHYSICIANS AND SURGEONS") %>% 
+  mutate(isOver55 = Age >= 55) %>% 
+  group_by(isOver55, Occupation) %>% 
+  summarise(MeanWage = mean(Wage))
+```
+
+```{r}
+
+mass %>% 
+  select(sex = SEX, occupation = OCCP, workHoursPerWeek = WKHP) %>%
+  filter(sex == "Female") %>% 
+  group_by(occupation) %>%
+  filter(n() >= 10) %>%
+  summarise(meanHours = mean(workHoursPerWeek)) %>% # mean(workHoursPerWeek, na.rm = TRUE)
+  arrange(-meanHours) %>%
+  select(occupation, meanHours)
+```
+
+```{r}
+mass %>% 
+  filter(SEX == "Female") %>% 
+  group_by(OCCP) %>% 
+  filter(n() >= 10) %>% 
+  summarise(
+    mean_hours = mean(WKHP, na.rm = TRUE),
+    count = n()
+  ) %>% 
+  arrange(desc(mean_hours))
+```
+
+# Lisamaterjale
+
+-   Pythoni syntaksi võrdlus R-ga: <https://pandas.pydata.org/pandas-docs/stable/getting_started/comparison/comparison_with_r.html>
+
+-   R tutorial Andmekaeve kursusest: <https://courses.cs.ut.ee/2017/DM/fall/Main/RTutorial>
