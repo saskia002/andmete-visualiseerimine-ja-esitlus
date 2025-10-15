@@ -1,0 +1,565 @@
+---
+title: "Praktikum 6 - grid graafika"
+output: html_notebook
+---
+
+## Sissejuhatus
+
+Enne kui läheme kõrgema taseme visualiseerimispakettide juurde nagu `ggplot2` vaatame kuidas panna kokku graafikud kasutadades ainult elementaarseid graafilisi elemente nagu punkt, joon, ring ja ruut. Käsud selliste graafiliste primitiivide joonistamiseks on paketis `grid`. Tegu on R-i ühe baaspaketiga, mis tuleb R-ga kaasa ning eraldi seda installima ei pea. Sellegi pooolest tuleb ta käsuga `library(grid)` sisse lugeda. See on pakett mille käskudele on üles ehitatud suurem osa teisi R-i graafikapakette.
+
+Tänase praktikumi eesmärk on jõuda graafiku defineerimiseni kasutades ainult paketi `grid` vahendeid.
+
+## Kujundite joonistamine tühjale lehele
+
+### Tühja lehe loomine
+
+Et hakata tühjale lehele objekte joonistama, tuleb esmalt luua tühi leht. Selleks on käsk `grid.newpage`.
+
+```{r}
+library(grid)
+
+grid.newpage()
+```
+
+Kõik järgnevad `grid.*` käsud lisavad elemente sellele lehele.
+
+### Ring, ristkülik, tekst, ...
+
+Ringi saab joonistada käsuga `grid.circle`, ristkülikut käsuga `grid.rect` ja teksti `grid.text`. Kõik nad võtavad sisse koordinaadid `x` ja `y`, mis vaikimisi tähistavad kujundi keskpunkti. Ringile tuleb ette anda ka raadius `r` ning ristkülikule laius `width` ja kõrgus `height`. Tekstile tuleb lisada ka parameeter `label` kuhu antakse ette kirjutatav tekst. Kõik asukoha ühikud on antud koordinaatides 0 ja 1 vahel kusjuures koordinaatide nullpunkt asub lehe all vasakus nurgas.
+
+```{r}
+grid.newpage()
+grid.circle(x = 0.5, y = 0.5, r = 0.5)
+grid.rect(x = 0.5, y = 0.5, height = 0.2, width = 0.5)
+grid.text(x = 0.5, y = 0.5, label = "STOP")
+```
+
+Graafilisi atribuute saab kõikidele funktsioonidele ette anda parameetriga `gp` mis võtab endale väärtuseks funktsiooni `gpar()` konkteetsete argumentidega. Käsu `gpar` argumente näeb abilehelt `?gpar`, kuid kasulikumad on:
+
+-   `col` - joonte ja servade värvi jaoks
+
+-   `fill` - kujundite sisemuse värvimise jaoks
+
+-   `fontsize` - teksti jaoks
+
+```{r}
+grid.newpage()
+grid.rect(x = 0.5, y = 0.5, height = 0.5, width = 0.5, gp = gpar(fill = "gold"))
+grid.rect(x = 0.5, y = 0.825, height = 0.15, width = 0.2, gp = gpar(fill = "gold"))
+grid.rect(x = 0.5, y = 0.175, height = 0.15, width = 0.25, gp = gpar(fill = "gold"))
+grid.circle(x = c(0.4, 0.6), y = c(0.6, 0.6), r = 0.05, gp = gpar(fill = "black"))
+grid.circle(x = c(0.5), y = c(0.4), r = 0.1, gp = gpar(fill = "black"))
+grid.text(x = 0.8, y = 0.4, label = "AAAAAAAAAAAAAA!", gp = gpar(fontsize = 20))
+```
+
+Üks parameeter mida kandiliste objektide (ristkülikud ja tekst) puhul saab sättida on `just` ehk *justification.* See ütleb millise kuidas asetseb etteantud koordinaat objekti suhtes. Vaikimisi on väärtuseks `c(0.5, 0.5)`. Näiteks `c(0, 0)`tähendab et antud koordinaat on objekti alumises vasakus nurgas ja `c(1, 1)` et ülemises paremas. Vaatame näidet.
+
+```{r}
+grid.newpage()
+
+grid.points(x = 0.5, y = 0.5, default.units = "npc", pch = 20)
+
+grid.text(x = 0.5, y = 0.5, just = c(0, 0), label = "just = c(0, 0)")
+grid.text(x = 0.5, y = 0.5, just = c(0, 1), label = "just = c(0, 1)")
+grid.text(x = 0.5, y = 0.5, just = c(1, 0), label = "just = c(1, 0)")
+grid.text(x = 0.5, y = 0.5, just = c(1, 1), label = "just = c(1, 1)")
+
+
+```
+
+#### Ülesanne 1
+
+-   Joonista kasutades ringi ja risküliku käsku punane pulgakomm, halli pulgaga (värvid on siis vastavalt: `"red"`ja `"grey"`)
+
+```{r}
+grid.newpage()
+
+grid.rect(x = 0.5, y = 0.45, height = 0.7, width = 0.01, gp = gpar(fill = "grey"))
+grid.circle(x = 0.5, y = 0.8, r = 0.1, gp = gpar(fill = "red"))
+
+
+```
+
+## Lehe jagamine akendeks
+
+Üks mugav ja kasulik funktsioon grid paketis on `viewport`. Sisuliselt me saame lehele defineerida etteantud mõõtude ja asetusega akna, mille sees saame joonistada samuti suhtelisi koordinaate kasutades. Akna luua ja sinna "sisse minna" saame käskude kombinatsiooniga `pushViewport(viewport(…))`, kus `…` asemel on erinevad viewporti parameetrid mis on suhteliselt sarnased `grid.rect` omadele (`x`, `y`, `width`, `height`, `just`). Kõik antud käsule järgnevad joonistused lähevad selle "akna" sisse kuni käsuni `popViewport`.
+
+```{r}
+grid.newpage()
+pushViewport(viewport(x = 0.2, y = 0.4, height = 0.4, width = 0.1))
+grid.rect() # Vaikimisi parameetritega jooonistab kasti mis on sama suur kui aken
+grid.circle()
+popViewport()
+
+grid.circle()
+```
+
+See on kasulik näiteks, et kasutada juba kirjutatud koodi ilma koordinaatide pärast muretsemata.
+
+```{r}
+lego_face = function(){
+  grid.rect(x = 0.5, y = 0.5, height = 0.5, width = 0.5, gp = gpar(fill = "gold"))
+  grid.rect(x = 0.5, y = 0.825, height = 0.15, width = 0.2, gp = gpar(fill = "gold"))
+  grid.rect(x = 0.5, y = 0.175, height = 0.15, width = 0.25, gp = gpar(fill = "gold"))
+  grid.circle(x = c(0.4, 0.6), y = c(0.6, 0.6), r = 0.05, gp = gpar(fill = "black"))
+  grid.circle(x = c(0.5), y = c(0.4), r = 0.1, gp = gpar(fill = "black"))
+}
+
+grid.newpage()
+
+pushViewport(viewport(x = 1, y = 1, width = 0.5, height = 0.5, just = c(1, 1)))
+grid.rect()
+lego_face()
+popViewport()
+
+pushViewport(viewport(x = 0.5, y = 0.5, width = 0.2, height = 0.2))
+grid.rect()
+lego_face()
+popViewport()
+
+pushViewport(viewport(x = 0.2, y = 0.2, width = 0.15, height = 0.15, angle = 45))
+grid.rect()
+lego_face()
+popViewport()
+
+```
+
+Graafikute loomise kontekstis saab akendega ära määrata, enne joonistama asumist graafiku elementide paigutuse lehel. Nii saab erinevate elementide joonistamise ära eraldada.
+
+```{r}
+grid.newpage()
+
+# Legend
+pushViewport(viewport(x = 0.8, y = 0, height = 1, width = 0.2, just = c(0, 0)))
+grid.rect()
+grid.text(label = "Legend")
+popViewport()
+
+# Graafik
+pushViewport(viewport(x = 0.8, y = 0.9, height = 0.75, width = 0.7, just = c(1, 1)))
+grid.rect()
+grid.text(label = "Graafik")
+popViewport()
+
+# Pealkiri
+pushViewport(viewport(x = 0.8, y = 0.9, height = 0.1, width = 0.7, just = c(1, 0)))
+grid.rect()
+grid.text(label = "Pealkiri")
+popViewport()
+
+# x - telg
+pushViewport(viewport(x = 0.8, y = 0.15, height = 0.15, width = 0.7, just = c(1, 1)))
+grid.rect()
+grid.text(label = "X - telg")
+popViewport()
+
+# y - telg
+pushViewport(viewport(x = 0, y = 0.15, height = 0.75, width = 0.1, just = c(0, 0)))
+grid.rect()
+grid.text(label = "Y - telg")
+popViewport()
+```
+
+Nüüd graafikut luues, saame paigutuse koodi võtta ja asendada õiges aknas olemaasolevad käsud päriselt soovituga. Praktilise nipina võib enne paigutuse loomist joonistada soovitav see paberile. Nii on lihtsam õigeid koordinaate välja arvutada.
+
+#### Ülesanne 2
+
+-   Kasutades oma pulgakommi koodi ja aknaid, vaata kas suudad joonistada midagi sarnast järgnevale.
+
+![](images/Screenshot%202021-02-11%20at%2015.23.49.png){width="130"}
+
+```{r}
+
+pulgakomm = function() {
+  grid.rect(x = 0.5, y = 0.45, height = 0.7, width = 0.01, gp = gpar(fill = "grey"))
+  grid.circle(x = 0.5, y = 0.8, r = 0.1, gp = gpar(fill = "red"))
+}
+
+grid.newpage()
+
+pushViewport(viewport())
+pulgakomm()
+popViewport()
+
+pushViewport(viewport(angle = 120))
+pulgakomm()
+popViewport()
+
+pushViewport(viewport(angle = -120))
+pulgakomm()
+popViewport()
+```
+
+-   Joonista pulgakomm etteantud paigutuse legendi osasse
+
+```{r}
+grid.newpage()
+
+# Legend
+pushViewport(viewport(x = 0.8, y = 0, height = 1, width = 0.2, just = c(0, 0)))
+grid.rect()
+grid.text(label = "Legend")
+pulgakomm()
+popViewport()
+
+# Graafik
+pushViewport(viewport(x = 0.8, y = 0.9, height = 0.75, width = 0.7, just = c(1, 1)))
+grid.rect()
+grid.text(label = "Graafik")
+popViewport()
+
+# Pealkiri
+pushViewport(viewport(x = 0.8, y = 0.9, height = 0.1, width = 0.7, just = c(1, 0)))
+grid.rect()
+grid.text(label = "Pealkiri")
+popViewport()
+
+# x - telg
+pushViewport(viewport(x = 0.8, y = 0.15, height = 0.15, width = 0.7, just = c(1, 1)))
+grid.rect()
+grid.text(label = "X - telg")
+popViewport()
+
+# y - telg
+pushViewport(viewport(x = 0, y = 0.15, height = 0.75, width = 0.1, just = c(0, 0)))
+grid.rect()
+grid.text(label = "Y - telg")
+popViewport()
+```
+
+## Andmete joonistamine graafikule
+
+Nüüd kus meil on graafiku elementide paigutus defineeritud, saame jupikaupa hakata elemente välja joonistama. Genereerime andmestiku.
+
+```{r}
+library(tidyverse)
+d = tibble(
+  x = runif(20),
+  y = runif(20),
+  color = sample(hcl.colors(3), 20, replace = T)
+)
+
+# Terve andmestik
+d
+
+# Üksikud muutujad
+d$x
+d$y
+d$color
+```
+
+Nüüd proovime tekkinud andmed kujutada punktidena. Selleks kasutame funtsiooni `grid.points`, mille koordinaadid ja atribuudid saab ette anda sarnaselt eelnevate funktsioonidega. Sellele funktsioonile spetsiifiline argument on `pch` mis määrab joonistatava punkti tüübi. Nagu R-i funktsioonidele kohane, töötab `grid.points` vektoriseeritult, nii ei pea me teda korduvalt iga punkti jaoks välja kutsuma.
+
+```{r}
+grid.newpage()
+
+# Legend
+pushViewport(viewport(x = 0.8, y = 0, height = 1, width = 0.2, just = c(0, 0)))
+grid.rect()
+grid.text(label = "Legend")
+popViewport()
+
+# Graafik
+pushViewport(viewport(x = 0.8, y = 0.9, height = 0.75, width = 0.7, just = c(1, 1)))
+grid.points(x = d$x, y = d$y, pch = 19, gp = gpar(col = d$color))
+popViewport()
+
+# Pealkiri
+pushViewport(viewport(x = 0.8, y = 0.9, height = 0.1, width = 0.7, just = c(1, 0)))
+grid.rect()
+grid.text(label = "Pealkiri")
+popViewport()
+
+# x - telg
+pushViewport(viewport(x = 0.8, y = 0.15, height = 0.15, width = 0.7, just = c(1, 1)))
+grid.rect()
+grid.text(label = "X - telg")
+popViewport()
+
+# y - telg
+pushViewport(viewport(x = 0, y = 0.15, height = 0.75, width = 0.1, just = c(0, 0)))
+grid.rect()
+grid.text(label = "Y - telg")
+popViewport()
+```
+
+Programmeerimise vähendamiseks kasutame telgede joonistamiseks valmis käske `grid.xaxis` ja `grid.yaxis`, mida tuleks rakendada sama akna sees, kus punktid asuvad (kuigi ta joonistab need sellest välja). Veerunimede ja pealkirjade panemiseks saame kasutada funktsiooni `grid.text`.
+
+```{r}
+
+grid.newpage()
+
+# Legend
+pushViewport(viewport(x = 0.8, y = 0, height = 1, width = 0.2, just = c(0, 0)))
+grid.rect()
+grid.text(label = "Legend")
+popViewport()
+
+# Graafik
+pushViewport(viewport(x = 0.8, y = 0.9, height = 0.75, width = 0.7, just = c(1, 1)))
+grid.points(x = d$x, y = d$y, pch = 19, gp = gpar(col = d$color))
+grid.xaxis()
+grid.yaxis()
+popViewport()
+
+# Pealkiri
+pushViewport(viewport(x = 0.8, y = 0.9, height = 0.1, width = 0.7, just = c(1, 0)))
+grid.text(x = 0, y = 0.1, label = "Juhuslikud punktid", just = c(0, 0), gp = gpar(fontsize = 20))
+popViewport()
+
+# x - telg
+pushViewport(viewport(x = 0.8, y = 0.15, height = 0.15, width = 0.7, just = c(1, 1)))
+grid.text(x = 0.5, y = 0.1, label = "x", just = c(0.5, 0))
+popViewport()
+
+# y - telg
+pushViewport(viewport(x = 0, y = 0.15, height = 0.75, width = 0.1, just = c(0, 0)))
+grid.text(x = 0.2, y = 0.5, label = "y", just = c(0, 0.5), rot = 270)
+popViewport()
+
+```
+
+#### Ülesanne 3
+
+-   Proovi joonistada legend värvide kohta Legendi aknasse (vt joonist). Arvesta et on kolm unikaalset värvi `hcl.colors(3)`. Vihje: lahenduseks peaks piisama ühest `grid.points` ja ühest `grid.text` käsust.
+
+![](images/Screenshot%202021-02-11%20at%2016.32.24.png){width="86"}
+
+```{r}
+grid.newpage()
+
+# Legend
+pushViewport(viewport(x = 0.8, y = 0, height = 1, width = 0.2, just = c(0, 0)))
+grid.points(x = c(0.1, 0.1, 0.1), y = c(0.4, 0.5, 0.6), pch = 19, gp = gpar(col = d$color))
+grid.text(x = c(0.2, 0.2, 0.2), y = c(0.4, 0.5, 0.6), label=d$color, just = c(0, 0.5))
+popViewport()
+
+# Graafik
+pushViewport(viewport(x = 0.8, y = 0.9, height = 0.75, width = 0.7, just = c(1, 1)))
+grid.points(x = d$x, y = d$y, pch = 19, gp = gpar(col = d$color))
+grid.xaxis()
+grid.yaxis()
+popViewport()
+
+# Pealkiri
+pushViewport(viewport(x = 0.8, y = 0.9, height = 0.1, width = 0.7, just = c(1, 0)))
+grid.text(x = 0, y = 0.1, label = "Juhuslikud punktid", just = c(0, 0), gp = gpar(fontsize = 20))
+popViewport()
+
+# x - telg
+pushViewport(viewport(x = 0.8, y = 0.15, height = 0.15, width = 0.7, just = c(1, 1)))
+grid.text(x = 0.5, y = 0.1, label = "x", just = c(0.5, 0))
+popViewport()
+
+# y - telg
+pushViewport(viewport(x = 0, y = 0.15, height = 0.75, width = 0.1, just = c(0, 0)))
+grid.text(x = 0.2, y = 0.5, label = "y", just = c(0, 0.5), rot = 270)
+popViewport()
+```
+
+## Skaleerimine
+
+Iseenesest ongi nii graafik valmis, ainult andmestik oli suhteliselt ebarealistlik. Tavaliselt ei ole meie andmed mugavalt vahemikus (0, 1) ning diskreetsete tunnuse väärtused ei ole värvinimed. Sellegipoolest annab eelneva sektsiooni andmestik meile aimu millisele kujule me peaksime andmestiku viima kui me seda välja joonistada tahame. Seda algandmete joonistamiseks sobivale kujule viimise protsessi nimetatakse skaleerimiseks.
+
+Proovime seda teha nüüd ühel päris andmestikul.
+
+```{r}
+eyecolor = tibble(
+  eye = c("Pruun", "Pruun", "Sinine", "Sinine", "Helepruun", "Helepruun", "Roheline", "Roheline"),
+  gender = c("Mees", "Naine", "Mees", "Naine", "Mees", "Naine", "Mees", "Naine"),
+  count = c(98, 122, 101, 114, 47, 46, 33, 31)
+)
+
+eyecolor
+```
+
+Näitame pildil tunnuseid järgnevate vahenditega
+
+-   `eye` --\> x-telg
+
+-   `count` -\> y-telg
+
+-   `gender` -\> värv
+
+### Silmavärv
+
+Silmavärv on diskreetne tunnus ja me peame selle viima (soovitavalt võrdsete vahemikega) numbrilisteks väärtusteks vahemikus (0, 1). Selleks teisendame silmavärvid numbriteks ja siis skaleerime need vahemikku (0, 1).
+
+```{r}
+# Trikk: et saada diskreetsetest tunnusest numbrid proovi järgnevat
+# eyecolor$eye %>% as.factor() %>% as.numeric()
+
+eyecolor = eyecolor %>% 
+  mutate(eye_scaled = eye %>% as.factor() %>% as.numeric()) %>% 
+  mutate(eye_scaled = eye_scaled / 5)
+
+eyecolor
+```
+
+### Sugu
+
+Sugu on ka diskreetne tunnus mille me peame ära teisendama. Kuid selle asemel, et teisendada seda vahemikku (0, 1), peame igale väärtusele seadma vastavusse ühe värvi. Et R-s seda teha teisendame soo väärtused numbriteks ja kasutame neid kui indekseid, et värvide vektorist õiged väärtused välja võtta.
+
+```{r}
+# i = eyecolor$gender %>% as.factor() %>% as.numeric()
+# colors = hcl.colors(2)
+# colors[i]
+
+eyecolor = eyecolor %>% 
+  mutate(gender_color = hcl.colors(2)[gender %>% as.factor() %>% as.numeric()])
+
+eyecolor
+```
+
+### Inimeste arv
+
+Viimaks skaleerime inimeste arvu. See väärtus on jällegi vaja saada vahemikku (0, 1). Üks variant selleks on defineerida skaala nii, et 0 tähistab nulli ja 1 maksimaalset inimeste arvu andmestikus. Selleks tuleb tunnuse väärtused maksimaalse väärtusega läbi jagada.
+
+```{r}
+eyecolor = eyecolor %>% 
+  mutate(count_scaled = count / max(count))
+
+eyecolor
+```
+
+### Graafik
+
+Nii olemegi saanud andmed mis on sarnasel kujul kui eenevas paragrahvis näidatud. Nüüd saame sisuliselt sama koodi mis enne rakendada , et joonistada graafik.
+
+Huvitav on märkida, et näiteks ggplot2 teisendab sisemiselt andmed umbes sarnasele kujule nagu meie praegu.
+
+```{r}
+grid.newpage()
+
+# Legend
+pushViewport(viewport(x = 0.8, y = 0, height = 1, width = 0.2, just = c(0, 0)))
+grid.points(x = c(0.1, 0.1, 0.1), y = c(0.4, 0.5, 0.6), pch = 19, gp = gpar(col = hcl.colors(3)))
+grid.text(x = c(0.2, 0.2, 0.2), y = c(0.4, 0.5, 0.6), label = hcl.colors(3), just = c(0, 0.5))
+popViewport()
+
+# Graafik
+pushViewport(viewport(x = 0.8, y = 0.9, height = 0.75, width = 0.7, just = c(1, 1)))
+grid.points(x = eyecolor$eye_scaled, y = eyecolor$count_scaled, pch = 19, gp = gpar(col = eyecolor$gender_color))
+grid.xaxis()
+grid.yaxis()
+popViewport()
+
+# Pealkiri
+pushViewport(viewport(x = 0.8, y = 0.9, height = 0.1, width = 0.7, just = c(1, 0)))
+grid.text(x = 0, y = 0.1, label = "Statistikute silmavärv", just = c(0, 0), gp = gpar(fontsize = 20))
+popViewport()
+
+# x - telg
+pushViewport(viewport(x = 0.8, y = 0.15, height = 0.15, width = 0.7, just = c(1, 1)))
+grid.text(x = 0.5, y = 0.1, label = "Silmavärv", just = c(0.5, 0))
+popViewport()
+
+# y - telg
+pushViewport(viewport(x = 0, y = 0.15, height = 0.75, width = 0.1, just = c(0, 0)))
+grid.text(x = 0.2, y = 0.5, label = "Arv", just = c(0, 0.5), rot = 270)
+popViewport()
+
+```
+
+### Teljed
+
+Ülalolev graafik on peaaegu õige, kuid ilmselgelt ei muutu meil silmavärv ja inimeste arv vahemikus (0, 1). Selle parandamiseks on käskudel `grid.xaxis` ja `grid.yaxis` parameetrid `at` ja `label`, kus esimene näitab koordinaati ja teine näitab mis silt sinna panna. Silmavärvi puhul x-teljele kantavad punktid ja sildid on suhteliselt selged. Pideva y-telje korral võime panna vaid sildid miinimumile ja maksimumile (0, 122), kuid see on kole. Parem oleks panna ilusad, näiteks täiskümnetega, sildid. Selleks on funktsioon `grid.pretty`, mis otsib etteantud vahemikus "ilusad" punktid.
+
+```{r}
+#grid.pretty(c(0, 122))
+grid.pretty(c(0, 122)) / max(eyecolor$count)
+```
+
+Paneme need nüüd pildile.
+
+```{r}
+grid.newpage()
+
+# Legend
+pushViewport(viewport(x = 0.8, y = 0, height = 1, width = 0.2, just = c(0, 0)))
+grid.points(x = c(0.1, 0.1, 0.1), y = c(0.4, 0.5, 0.6), pch = 19, gp = gpar(col = hcl.colors(3)))
+grid.text(x = c(0.2, 0.2, 0.2), y = c(0.4, 0.5, 0.6), label = hcl.colors(3), just = c(0, 0.5))
+popViewport()
+
+# Graafik
+pushViewport(viewport(x = 0.8, y = 0.9, height = 0.75, width = 0.7, just = c(1, 1)))
+grid.points(x = eyecolor$eye_scaled, y = eyecolor$count_scaled, pch = 19, gp = gpar(col = eyecolor$gender_color))
+grid.xaxis(at = c(0.2, 0.4, 0.6, 0.8), label = c("Helepruun", "Pruun", "Roheline", "Sinine"))
+grid.yaxis(at = grid.pretty(c(0, 122)) / max(eyecolor$count), label = grid.pretty(c(0, 122)))
+popViewport()
+
+# Pealkiri
+pushViewport(viewport(x = 0.8, y = 0.9, height = 0.1, width = 0.7, just = c(1, 0)))
+grid.text(x = 0, y = 0.1, label = "Statistikute silmavärv", just = c(0, 0), gp = gpar(fontsize = 20))
+popViewport()
+
+# x - telg
+pushViewport(viewport(x = 0.8, y = 0.15, height = 0.15, width = 0.7, just = c(1, 1)))
+grid.text(x = 0.5, y = 0.1, label = "Silmavärv", just = c(0.5, 0))
+popViewport()
+
+# y - telg
+pushViewport(viewport(x = 0, y = 0.15, height = 0.75, width = 0.1, just = c(0, 0)))
+grid.text(x = 0.2, y = 0.5, label = "Arv", just = c(0, 0.5), rot = 270)
+popViewport()
+```
+
+#### Ülesanne 4
+
+-   Skaleeri y-telg nii, et vahemik oleks miinimumväärtusest maksimumini. (x - min(x))/(max(x) - min(x))
+
+```{r}
+eyecolor = eyecolor %>% 
+  mutate(count_scaled2 = (count - min(count)) / (max(count) - min(count)))
+
+eyecolor
+```
+
+```{r}
+grid.newpage()
+
+# Legend
+pushViewport(viewport(x = 0.8, y = 0, height = 1, width = 0.1, just = c(0, 0)))
+grid.points(x = c(0.1, 0.1), y = c(0.4, 0.5), pch = 19, gp = gpar(col = hcl.colors(2)))
+grid.text(x = c(0.3, 0.3), y = c(0.4, 0.5), label = c("Mees", "Naine"), just = c(0, 0.5))
+popViewport()
+
+# Graafik
+pushViewport(viewport(x = 0.9, y = 0.9, height = 0.75, width = 0.8, just = c(1, 1)))
+grid.points(x = eyecolor$eye_scaled, y = eyecolor$count_scaled2, pch = 19, gp = gpar(col = eyecolor$gender_color))
+grid.xaxis(at = c(0.2, 0.4, 0.6, 0.8), label = c("Helepruun", "Pruun", "Roheline", "Sinine"))
+grid.yaxis(
+  at = ((grid.pretty(c(31, 122)) - min(eyecolor$count)) / (max(eyecolor$count) - min(eyecolor$count))), 
+  label = grid.pretty(c(31, 122))
+  )
+popViewport()
+
+# Pealkiri
+pushViewport(viewport(x = 0.8, y = 0.925, height = 0.1, width = 0.7, just = c(1, 0)))
+grid.text(x = 0, y = 0.1, label = "Statistikute silmavärv", just = c(0, 0), gp = gpar(fontsize = 20))
+popViewport()
+
+# x - telg
+pushViewport(viewport(x = 0.8, y = 0.15, height = 0.15, width = 0.7, just = c(1, 1)))
+grid.text(x = 0.5, y = 0.1, label = "Silmavärv", just = c(0.5, 0))
+popViewport()
+
+# y - telg
+pushViewport(viewport(x = 0, y = 0.15, height = 0.75, width = 0.1, just = c(0, 0)))
+grid.text(x = 0.2, y = 0.5, label = "Arv", just = c(0, 0.5), rot = 270)
+popViewport()
+```
+
+## Kodune ülesanne
+
+-   Kasutades õpitud käske joonista sama andmestik välja tulpdiagrammina, kus
+
+    -   `eye` --\> värv
+
+    -   `count` -\> x-telg
+
+    -   `gender` -\> y-telg
+
+    Sama soo erinevate värvide tulbad peaks asuma üksteise kõrval. Graafikul peavad olema korrektselt kõik vajalikud osad: legend, teljenimed, pealkiri, jne.
+
+    NB! Joonistamisel kasuta ainult `grid` paketi käske, näiteks ei tohi kasutada käsku barplot või ggplot2 vahendeid.
