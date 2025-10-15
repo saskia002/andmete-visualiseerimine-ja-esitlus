@@ -563,3 +563,104 @@ popViewport()
     Sama soo erinevate värvide tulbad peaks asuma üksteise kõrval. Graafikul peavad olema korrektselt kõik vajalikud osad: legend, teljenimed, pealkiri, jne.
 
     NB! Joonistamisel kasuta ainult `grid` paketi käske, näiteks ei tohi kasutada käsku barplot või ggplot2 vahendeid.
+
+```{r}
+eyecolor <- eyecolor %>%
+  mutate(
+    eye_scaled = as.numeric(factor(eye)) / 5,
+    gender_offset = ifelse(gender == "Mees", -0.03, 0.03),
+  )
+```
+
+```{r}
+grid.newpage()
+
+
+pushViewport(viewport(x = 0.9, y = 0.9, height = 0.75, width = 0.7, just = c(1, 1)))
+  # Tulpade joonistamine
+  for (i in seq_len(nrow(eyecolor))) {
+    grid.rect(
+      y = eyecolor$eye_scaled[i] + eyecolor$gender_offset[i],
+      x = eyecolor$count_scaled[i] / 2,
+      height = 0.04, width = eyecolor$count_scaled[i],
+      gp = gpar(fill = eyecolor$gender_color[i], col = "black")
+    )
+  }
+
+  # Teljed x ja y
+  grid.yaxis(at = c(0.2, 0.4, 0.6, 0.8),
+             label = c("Helepruun", "Pruun", "Roheline", "Sinine"))
+  grid.xaxis(at = grid.pretty(c(0, 122)) / max(eyecolor$count),
+             label = grid.pretty(c(0, 122)))
+popViewport()
+
+# Pealkiri
+pushViewport(viewport(x = 0.8, y = 0.925, height = 0.1, width = 0.7, just = c(1, 0)))
+  grid.text(x = 0, y = 0.1,
+            label = "Statistikute silmavärv soo ja värvi lõikes",
+            just = c(0, 0), gp = gpar(fontsize = 18))
+popViewport()
+
+# x - telg 
+pushViewport(viewport(x = 0.8, y = 0.15, height = 0.15, width = 0.7, just = c(1, 1)))
+  grid.text(x = 0.5, y = 0.1, label = "Arv", just = c(0.5, 0))
+popViewport()
+
+# y - telg 
+pushViewport(viewport(x = 0, y = 0.15, height = 0.75, width = 0.1, just = c(0, 0)))
+  grid.text(x = 0.2, y = 0.5, label = "Silmavärv", just = c(0, 0.5), rot = 90)
+popViewport()
+
+# Legend
+pushViewport(viewport(x = 0.85, y = 0, height = 1, width = 0.1, just = c(0, 0)))
+  grid.points(x = c(0.1, 0.1), y = c(0.90, 0.95), pch = 19, gp = gpar(col = hcl.colors(2)))
+  grid.text(x = 0.3, y = c(0.90, 0.95), label = c("Mees", "Naine"), just = c(0, 0.5))
+popViewport()
+
+```
+
+```{r}
+
+grid.newpage()
+
+pushViewport(viewport(x = 0.9, y = 0.9, height = 0.75, width = 0.8, just = c(1, 1)))
+
+# Tulpade joonistamine
+for (i in seq_len(nrow(eyecolor))) {
+  grid.rect(
+    x = eyecolor$eye_scaled[i] + eyecolor$gender_offset[i],
+    y = eyecolor$count_scaled[i] / 2,
+    width = 0.04, height = eyecolor$count_scaled[i],
+    gp = gpar(fill = eyecolor$gender_color[i], col = "black")
+  )
+}
+
+# Teljed
+grid.xaxis(at = c(0.2, 0.4, 0.6, 0.8), label = c("Helepruun", "Pruun", "Roheline", "Sinine"))
+grid.yaxis(at = grid.pretty(c(0, 122)) / max(eyecolor$count), label = grid.pretty(c(0, 122)))
+popViewport()
+
+# Pealkiri
+pushViewport(viewport(x = 0.8, y = 0.925, height = 0.1, width = 0.7, just = c(1, 0)))
+grid.text(x = 0, y = 0.1, label = "Statistikute silmavärv soo ja värvi lõikes",
+          just = c(0, 0), gp = gpar(fontsize = 18))
+popViewport()
+
+# x - telg
+pushViewport(viewport(x = 0.8, y = 0.15, height = 0.15, width = 0.7, just = c(1, 1)))
+grid.text(x = 0.5, y = 0.1, label = "Silmavärv", just = c(0.5, 0))
+popViewport()
+
+# y - telg
+pushViewport(viewport(x = 0, y = 0.15, height = 0.75, width = 0.1, just = c(0, 0)))
+grid.text(x = 0.2, y = 0.5, label = "Arv", just = c(0, 0.5), rot = 270)
+popViewport()
+
+# Legend
+pushViewport(viewport(x = 0.8, y = 0, height = 1, width = 0.1, just = c(0, 0)))
+grid.rect(x = 0.1, y = c(0.45, 0.55), width = 0.05, height = 0.05,
+          gp = gpar(fill = hcl.colors(2)))
+grid.text(x = 0.3, y = c(0.45, 0.55), label = c("Mees", "Naine"), just = c(0, 0.5))
+popViewport()
+
+```
