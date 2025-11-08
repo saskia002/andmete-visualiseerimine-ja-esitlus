@@ -1,0 +1,388 @@
+---
+title: "Praktikum 10 - Maatriksid"
+output: html_notebook
+---
+
+## Maatriksitega töötamine R-s
+
+Selles praktikumis tutvume maatriksite visualiseerimisega. Enne aga kui läheme visualiseerimise juurde uurime maatriksitega töötamise põhitõdesid.
+
+Maatriks on väga sarnane andmetabelile, kuid kui andmetabelil võisid veerud olla erinevat tüüpi, siis maatriksite puhul on nii veerud kui read sama tüüpi (enamasti numbrid). Maatriksi võib luua erinevate käskudega.
+
+```{r}
+matrix(1:10, nrow = 2, ncol = 5)
+
+rbind(1:3, 4:6) # ridade kokku kleepinine
+cbind(1:3, 4:6) # Veergude kokku kleepimine
+```
+
+Maatriksist elementide välja võtmine käib käib nurksulgudega, millele antakse ette kaks argumenti: rea- ja veeru indeksid. Need antakse ette vektorina (indekseerimine algab R-s ühest). Kui jätta üks indeks tühjaks, võetakse kõik väärtused. Kui võtta ainult üks rida või veerg välja konverteeritakse tulemus automaatselt vektoriks
+
+```{r}
+x = matrix(1:15, nrow = 3, ncol = 5)
+
+x[1:2, 3:4]
+x[,3:4]
+x[1:2, 3]
+```
+
+Maatriksi ridadele ja veergudele saab ka nimesid anda. Siis saab väärtuste välja võtmiseks nurksulgudesse lisada ka nimevektoreid. Rea- ja veerunimede vaatamiseks ja lisamiseks kasutatakse vastavalt käske `rownames` ja `colnames`.
+
+```{r}
+rownames(x) = c("A", "B", "C")
+x
+
+x["A", ]
+x[c("C", "B", "A"), ]
+rownames(x)
+```
+
+Maatriksi algseks uurimiseks on hea teada funktsioone `dim`, `nrow`, `ncol` ja `head`, mis vastavalt annavad maatriksi dimensioonid, ridade arvu, veergude arvu ja näitavad esimest 6-e rida.
+
+```{r}
+dim(x)
+nrow(x)
+ncol(x)
+head(x)
+```
+
+Kuna veergusid ja ridasid kontseptuaalselt eristama ei pea, saab maatriksitega teha asju mida andmetabelid ei võimalda. Näiteks saab maatrikseid transponeerida (käsuga `t`) ja sooritada tehteid maatriksitega. Tavalisi tehteid, nagu `+`, `-`, `*`, `/` sooritatakse maatriksitega elemendikaupa. Kui tehte teiseks osapooleks on vektor, mis on lühem kui maatriksi elementide arv, siis vektori väärtusi taaskasutatakse, tehtega liigutakse õle veergude.
+
+```{r}
+x = matrix(1, nrow = 3, ncol = 4)
+x
+t(x)
+
+x + 5
+x + 1:3
+x + 1:4
+x + 1:5
+```
+
+Enamasti kui me andmeid R-i sisse loeme, siis loetakse nad sisse andmetabelina. Selleks, et andmetabelist maatriksit saada tuleb kasutada käsku `as.matrix`. Tuleb meeles pidada, et maatriksis peavad kõik väärtused olema sama tüüpi, seega `as.matrix` teisendab väärtused sellisesse andmetüüpi, mis sobiks kõigile veergudele.
+
+```{r}
+df = tibble(A = 1:5, B = 5:1)
+df
+
+as.matrix(df)
+
+as.matrix(tibble(A = 1:5, B = 5:1, C = c("A", "A", "B", "B", "B")))
+```
+
+#### Ülesanded
+
+-   Tekita maatriks **X** mõõtmetega 5x3, mille esimene veerg on 1:5, teine 2:6 ja kolmas 10:6.
+
+-   Pane maatriksi X reanimedeks R1-R5 ning veerunimedeks V1-V3
+
+-   Muuda maatriksi veergude järjekorda nii, et see oleks uues maatriksis V2, V1, V3
+
+-   Lahuta X igast reast tema järjekorra number
+
+## Maatriksite visualiseerimine klasterdatud soojuskaartidega
+
+Selleks et hakata maatrikseid visualiseerima, loeme sisse kõigepealt andmed `test.RData` ning vajalikud paketid millega töötada. Maatriks `test` sisaldab genereeritud geeniekspressiooni andmeid. Nii ridade kui veergude kohta on meil ka meta-andmed, andmetabelid `test_ann_row` ja `test_ann_col`.
+
+```{r}
+library(tidyverse)
+
+load("test.RData", verbose = T)
+
+dim(test_mat)
+head(test_mat)
+```
+
+Soojuskaarte hakkame selles praktikumis joonistama paketiga `pheatmap`. Leome selle paketi sisse ja rakendame seda oma maatriksile.
+
+```{r}
+library(pheatmap)
+
+pheatmap(test_mat)
+```
+
+### pheatmap lihtsamad võimalused
+
+Nii saime tulemuseks ühe soojuskaardi, mis on automaatselt ära klasterdatud nii ridades kui veergudes. Pane tähele, et ta näitab ka maatriksi rea ja veeru nimesid. Nii et nende lisamine maatriksile on väga tähtis. Soovi korral saame nende näitamist ka sisse-välja lülitada parameetriga `show_rownames` ja `show_colnames`. Antud maatriksi puhul ei ole see nii oluline, kuid suuremate maatriksite puhul hakkavad nimed üle kattuma ja neid on raske lugeda.
+
+```{r}
+pheatmap(test_mat, show_rownames = F)
+```
+
+Klasterdust on pildil võimalik mitut moodi modifitseerida. Näiteks võime välja lülitada klasterduse kas ridades või veergudes. Seda saab teha parameetritega `cluster_rows` ja `cluster_cols`.
+
+```{r}
+pheatmap(test_mat, cluster_rows =  F)
+pheatmap(test_mat, cluster_cols = F, cluster_rows =  F)
+```
+
+Klasterduse parameetreid saame muuta argumentidega `clustering_distance_rows`, `clusterin_distance_cols` ja `clustering_method`.
+
+```{r}
+pheatmap(test_mat)
+pheatmap(test_mat, clustering_distance_rows = "correlation", clustering_method = "single")
+```
+
+Saame ka muuta värvigammat. Siin tuleb selleks veidi rohkem vaeva näha kui ggplotis, selleks tuleb defineerida argumendiga `breaks` punktid mis jagavad väärtuste ruumi vahemikeks ja igale vahemikule tuleb ette anda värv argumendiga `color`. Pane tähele, et `breaks` vektor peab olema ühe elemendi võrra pikem kui `color` vektor.
+
+```{r}
+pheatmap(test_mat, breaks = c(-2, 1, 4, 8), color = c("darkblue", "blue", "lightblue"))
+```
+
+Tavaliselt me tahame ette anda siledama gradiendi ja selleks saame kasutada funktsiooni `colorRampPalette`, mis võtab ette värvivektori ja defineerib paleti funktsiooni mis genereerib täpselt ette antud koguse värve sealt paletist.
+
+```{r}
+p = colorRampPalette(c("lightblue", "white", "pink"))
+p(5)
+p(15)
+```
+
+Kuna vaikimisi genereeritakse 99 vahemikku pheatmapi poolt saame ette anda ka paleti 99 väärtusega.
+
+```{r}
+pheatmap(test_mat, color = p(99))
+pheatmap(test_mat, color = colorRampPalette(c("darkblue", "white", "darkred"))(99))
+```
+
+Kui me peaks vahemikke muuta tahtma peame defineerima ka breaks parameetri meile meeldivate vahemikega. Saame genereerida etteantud vahemikku käsuga `seq`.
+
+```{r}
+seq(-8, 8, length.out = 10)
+
+pheatmap(
+  test_mat, 
+  breaks = seq(-8, 8, length.out = 100),
+  color = colorRampPalette(c("darkblue", "white", "darkred"))(99)
+)
+```
+
+Kui ridu ja veerge on vähe on kasulik lisada pildile ka originaalsed väärtused. Nii on graafikut lihtsam jälgida. Numbreid saab sisse lülitada parameetriga `display_numbers`.
+
+```{r}
+pheatmap(test_mat, display_numbers = T)
+```
+
+#### Ülesanded
+
+-   Proovi saavutada järgnev pilt.
+
+![](images/Screenshot%202021-03-07%20at%2022.17.02.png)
+
+### Ridade ja veergude annoteerimine
+
+Ridade ja veergude annoteerimiseks tuleb ette anda andmetabelid, mille rea nimesid kasutatakse selleks, et viia kokku andmetabeli read visualiseeritava maatriksi ridade/veergudega. Meie andmetega tulid kaasa tabelid `test_ann_col` ja `test_ann_row`.
+
+```{r}
+test_ann_col
+test_ann_row
+```
+
+Selliseid tabeleid saab ette anda pheatmap käsule argumentidega `annotation_row` ja `annotation_col`.
+
+```{r}
+pheatmap(test_mat, annotation_row = test_ann_row)
+pheatmap(test_mat, annotation_col = test_ann_col)
+```
+
+Mõnikord on kasulik klasterdamine välja lülitada ja järjestada ridu/veerge mõne annotatsiooni järgi. Selleks on kõige lihtsam viis järjestada ära annotatsioonide tabel ja siis nende reanimedega järjestada ümber maatriks. Sama moodi tuleks annotatsioonide järgi maatriksit filtreerida.
+
+```{r}
+test_ann_row = test_ann_row %>% 
+  arrange(GeneClass)
+
+pheatmap(
+  test_mat[rownames(test_ann_row), ],
+  cluster_rows = F,
+  annotation_row = test_ann_row
+)
+
+test_ann_col2 = test_ann_col %>% 
+  filter(CellType == "CT1")
+
+pheatmap(
+  test_mat[rownames(test_ann_row), rownames(test_ann_col2)],
+  annotation_col = test_ann_col
+)
+```
+
+Kui me ei taha näidata kõiki annotatsioone, mis tabelis on, siis peame enne soovitavad veerud andmetest välja valima.
+
+```{r}
+test_ann_col2 = test_ann_col %>% 
+  select(Time) 
+
+pheatmap(
+  test_mat,
+  annotation_col = test_ann_col2
+)
+```
+
+Üks tüütu probleem on see, et `tidyverse` `tibble` andmetüüp ei toeta enam reanimesid. Ja kui tidyverse käskusid kasutada võivad reanimed ära kaduda jushuslikult (kui `data.frame` muutub `tibble` -ks). Seetõttu on kasulik hoida reanimesid veeruna annotatsioonide tabelis ja enne heatmapi joonistamist muuta tablel `data.frame` -ks käsuga `as.data.frame` ning siis kasutada käsku `column_to_rownames` et muuta konkreetne veerg veerunimedeks. Seega alati tuleb tähele panna, mis kujul annotatsioonide fail on ja
+
+```{r}
+tac = test_ann_col %>% 
+  rownames_to_column("Id") %>% 
+  as_tibble()
+
+tac = tac %>% 
+  as.data.frame() %>% 
+  column_to_rownames("Id")
+
+pheatmap(
+  test_mat,
+  annotation_col = tac
+)
+```
+
+### pheatmap graafiku suuruse kontrollimine
+
+Soojuskaartide joonistamisel on tihti oluline kontrollida ruudukese suurust. Graafikud näevad koledad välja kui ruudukesed on liiga suured, samas liiga väikeste ruutude puhul võivad rea/veeru nimed muutuda loetamatuks. Ruudukeste suuruste kontroll on ka oluline kui me plaanime joonistada mitu soojuskaarti erineva suurusega andmetest ja tahame neid näidata kõrvuti. `pheatmap` käsul on selleks argumendid `cellheight` ja `cellwidth` , millele saab suurused ette and punktmõõdus (näit tekst pildil on 10 punkti kõrge).
+
+```{r}
+pheatmap(test_mat, cellwidth = 10, cellheight = 10)
+```
+
+Kui pilt ei mahu ära joonistusaknasse võib selle salvestada faili, mis tuleb õige suurusega. Faili nime saab ette anda argumendile `filename`.
+
+```{r}
+pheatmap(test_mat, cellwidth = 20, cellheight = 40)
+pheatmap(test_mat, cellwidth = 20, cellheight = 40, filename = "Blah.pdf")
+```
+
+#### Ülesanded
+
+-   Joonistage soojuskaart png faili, nii et selle lahtrid oleks suurusega 25 x 25 ning see kujutaks rakutüübi CT2 andmeid, mis on sorteeritud proovi võtmise aja järgi.
+
+## Peakomponent analüüs ja t-SNE
+
+### Peakomponent analüüs
+
+Teine kirjeldatud viis maatriksi kujul andmeid visualiseerida oli peakomponent analüüs. Selle teostamiseks on käsk `prcomp`. Käsk prcomp võtab ette maatriksi ja rakendab selle ridadel peakomponent analüüsi.
+
+```{r}
+pca = prcomp(test_mat)
+pca
+```
+
+Väljaprinditud tulemustega ei ole suurt midagi peale hakata. Tagastatud objektis aga on kogu info olemas. Selleks et saada aru mis info objektis on tuleks kasutada käsku `str` mis annab objekti struktuuri.
+
+```{r}
+str(pca)
+```
+
+Siit näeme et tegu on listiga millel on 5 komponenti, millest olulisemad on
+
+-   `x` - teisendatud andmed maatriksi kujul. Veergudes on siis andmed teisendatuna peakomponentidele
+
+-   `sdev` - teisendatud andmete standardhälve antud telje suunas
+
+-   `rotation` - teisendusmaatriks algsete andmete peakomponentidele üle viimiseks. See maatriks annab sisuliselt kaalud erinevatele veergudele iga peakomponendi kohta. Mõnikord on huvitav ka nid kaalusid uurida.
+
+Kõiki neid elemente saab sellest objektist kätte kasutades dollari sümbolit.
+
+```{r}
+pca$x
+
+pca$x[, 1:2]
+
+pca$sdev
+```
+
+Kõige klassikalisema visualisatisiooni saame, kui visualiseerime andmed projekteerituna esimesele kahele komponendile ning värvime need vastavalt mõnele muutujale. Selleks tuleks tekitada uus andmetabel, kus on sees nii (antud juhul maatriksi rea) anntotatsioonid kui ka peakomponendid.
+
+```{r}
+d = test_ann_row %>% 
+  rownames_to_column("Id")
+
+d = bind_cols(d, as_tibble(pca$x[d$Id, ])) 
+d
+```
+
+Saadud tabel `d` on juba visualiseerimiseks õigel kujul.
+
+```{r}
+ggplot(d, aes(x = PC1, y = PC2, color = GeneClass)) + 
+  geom_point()
+```
+
+Komponentide kombinatsioone võib varieerida, et näha kas hilisemad komponendeid ka midagi huvitavat paljastavad. Üks hea viis seda teha on nn *pairs-plot* mis joonistav üles kõik parameetrite paarid. Üks vesioon `ggpairs` on implementeeritud paketis `GGally`.
+
+```{r}
+library(GGally)
+
+ggpairs(d, aes(color = GeneClass), columns =  3:6)
+```
+
+Siit pildilt on aga näha, et kolmas ja neljas komponent ei näita meile suurt midagi, seega neid pole ka suurt mõtet vaadata. Selle info võib kätte saada ka visualiseerides peakomponentide kirjeldatud standardhälvet. Sellist graafikut kus see on visualiseeritud nimetatakse *scree plot*iks. Kuna standardhälbed on antud vektorina tuleks see enne teisendada andmetabeliks ja siis sellel joonistada tulpdiagramm.
+
+```{r}
+d_sdev = tibble(
+  PC = 1:length(pca$sdev),
+  SDev = pca$sdev,
+  Variation = pca$sdev ** 2
+)
+
+d_sdev
+
+ggplot(d_sdev, aes(x = PC, y = Variation)) + 
+  geom_bar(stat = "identity")
+```
+
+### t-SNE
+
+Antud andmestikul ei pruugi t-SNE väga erinevaid tulemusi peakomponent analüüsist anda, sest esimesed peakomponendid kirjeldavad andmeid juba väga hästi. Sellegi poolest teeme selle analüüsi läbi kasutades funktsiooni `Rtsne` paketist `Rtsne`. Pane tähele, et modifitseerime kohe argumenti `perplexity`, mis intuitiivselt öeldes näitab naabrite arvu mis iga punkti jaoks oluline on. Kuna meie andmestik oli väga väike, siis vaikimis väärtus 30 ei oleks olnud mõistlik.
+
+```{r}
+library(Rtsne)
+
+tsne = Rtsne(test_mat, perplexity = 5)
+
+tsne
+```
+
+Siinses objektis on ainult üks huvitav element, selleks on teisendatud maatriks `Y`. Kahjuks kaotab `Rtsne` kõik rea ja veerunimed, nii peame me need uuesti külge kleepima, et me saaks teha visualiseerimist samamoodi kui peakomponent analüüsi puhul.
+
+```{r}
+d_tsne = tsne$Y
+rownames(d_tsne) = rownames(test_mat)
+colnames(d_tsne) = c("Component1", "Component2")
+
+d = test_ann_row %>% 
+  rownames_to_column("Id")
+
+d = bind_cols(d, as_tibble(d_tsne[d$Id, ])) 
+d
+
+ggplot(d, aes(x = Component1, y = Component2, color = GeneClass)) + 
+  geom_point()
+```
+
+#### Ülesanded
+
+Praegu tegime läbi peakomponent analüüsi ja t-SNE ridadel. Nüüd proovime sama veergudel.
+
+-   Tee läbi PCA veergudel
+
+    -   Visualiseeri peakomponentidel erinevaid annotatsioone
+
+    -   Joonista komponentide varieeruvuste graafik
+
+-   Joonista t-SNE graafik veergudele
+
+### Koduülesanne
+
+Loe sisse andmestik `PF16_2024.RData`. Maatriks `pf16_mat` sisaldab ühe isiksusetesti vastuseid portsu inimeste kohta. Ridades on inimeste andmed ja veergudes küsimuste vastused viie punktisel skaalal. Kus 1 on "ei ole üldse nõus" ja 5 on "nõustun täielikult". Nii ridade kui veergude kohta on meil ka meta-andmed, andmetabelid `ar` ja `ac`. Küsimuste kohta on teada kategooria ja küsimuse tekst. Inimeste kohta teame nende päritoluriiki, sugu ja vanust.
+
+-   Joonista maatriksist `pf16_mat` soojuskaart ja vasta paari lausega järgmistele küsimustele (40% punktidest)
+
+    -   Kas riik või vanus on seotud vastustega küsimustele?
+
+    -   Kas küsimused grupeeruvad kuidagi vastuste põhjal?
+
+    -   Vihje: kuna annotatsioone on palju kasuta võimalust genereerida graafiku fail, mis on suurem kui Rnotebooki graafiku aken. Samas võiks genereeritud fail siiski olla piisavalt väike, et mahub loetavalt ekraanile.
+
+-   Kasutades peakomponentide analüüsi ja t-SNEd uuri kas ka nendel graafikutel tulevad välja seosed vastuste ning riikide, vanuse ja soo vahel. Kirjelda paari lausega mis seosed sa leiad ja kas t-SNE ja peakomponentide analüüs annavad sarnased või erinevad tulemused. (40% punktidest)
+
+-   Proovi luua graafik mis toob välja selgelt mingite (mitte kõigi) konkreetsete küsimuste vastamise mustri eri riikides. Et oleks võimalik graafikult selgelt välja lugeda küsimuste sõnastus ja nende vastuste muster erinevatest riikidest pärit inimeste seas. Kirjelda millist seost sa pildilt näed (20% punktidest)
+
+Joonised peavad olema korrektsed ja selgelt loetavad.

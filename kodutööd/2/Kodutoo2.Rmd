@@ -1,0 +1,486 @@
+---
+title: "Kodutöö 2"
+output: html_notebook
+---
+
+## Kodutöö esitamise õpetus
+
+Iga ülesande lahendus peaks mahtuma ühte või mitmesse koodiaknasse, selle ülesande all. See kood peab olema kirjutatud nii, et saaks käima tõmmata ilma mõtlemata. See tähendab, et kõik vajalikud lisapaketid ja andmestikud loetakse sisse vastavas koodiaknas ning esitatud .zip failis on ka kõik andmestikud kaasas.
+
+Esita kogu kodutöö kataloog zip failina lehel <https://courses.cs.ut.ee/2025/dataviz/fall/Main/Homework>.
+
+## Ülesanne 1
+
+-   Kasutades õpitud käske joonista sama andmestik välja tulpdiagrammina, kus
+
+    -   `eye` --\> värv
+
+    -   `count` -\> x-telg
+
+    -   `gender` -\> y-telg
+
+    Sama soo erinevate värvide tulbad peaks asuma üksteise kõrval. Graafikul peavad olema korrektselt kõik vajalikud osad: legend, teljenimed, pealkiri, jne.
+
+    NB! Joonistamisel kasuta ainult `grid` paketi käske, näiteks ei tohi kasutada käsku barplot või ggplot2 vahendeid.
+
+```{r}
+
+library(grid)
+```
+
+```{r}
+
+eyecolor = tibble(
+  eye = c("Pruun", "Pruun", "Sinine", "Sinine", "Helepruun", "Helepruun", "Roheline", "Roheline"),
+  gender = c("Mees", "Naine", "Mees", "Naine", "Mees", "Naine", "Mees", "Naine"),
+  count = c(98, 122, 101, 114, 47, 46, 33, 31)
+)
+
+eyecolor
+```
+
+```{r}
+
+
+eyecolor = eyecolor %>% 
+  mutate(eye_scaled = eye %>% as.factor() %>% as.numeric()) %>% 
+  mutate(eye_scaled = eye_scaled / 5)
+
+eyecolor = eyecolor %>% 
+  mutate(gender_color = hcl.colors(2)[gender %>% as.factor() %>% as.numeric()])
+
+eyecolor = eyecolor %>% 
+  mutate(count_scaled = count / max(count))
+
+eyecolor <- eyecolor %>%
+  mutate(
+    eye_scaled = as.numeric(factor(eye)) / 5,
+    gender_offset = ifelse(gender == "Mees", -0.03, 0.03),
+  )
+```
+
+**1.**
+
+```{r}
+grid.newpage()
+
+
+
+pushViewport(viewport(x = 0.9, y = 0.9, height = 0.75, width = 0.7, just = c(1, 1)))
+
+  for (i in seq_len(nrow(eyecolor))) {
+    grid.rect(
+      y = eyecolor$eye_scaled[i] + eyecolor$gender_offset[i],
+      x = eyecolor$count_scaled[i] / 2,
+      height = 0.04, width = eyecolor$count_scaled[i],
+      gp = gpar(fill = eyecolor$gender_color[i], col = "black")
+    )
+  }
+
+  grid.yaxis(at = c(0.2, 0.4, 0.6, 0.8), label = c("Helepruun", "Pruun", "Roheline", "Sinine"))
+
+  grid.xaxis(at = grid.pretty(c(0, 122)) / max(eyecolor$count),
+             label = grid.pretty(c(0, 122)))
+  
+popViewport()
+
+
+
+pushViewport(viewport(x = 0.8, y = 0.925, height = 0.1, width = 0.7, just = c(1, 0)))
+  grid.text(x = 0, y = 0.1,
+            label = "Statistikute silmavärv soo ja värvi lõikes",
+            just = c(0, 0), gp = gpar(fontsize = 18))
+  
+popViewport()
+
+
+
+pushViewport(viewport(x = 0.8, y = 0.15, height = 0.15, width = 0.7, just = c(1, 1)))
+  grid.text(x = 0.5, y = 0.1, label = "Arv", just = c(0.5, 0))
+popViewport()
+
+
+
+pushViewport(viewport(x = 0, y = 0.15, height = 0.75, width = 0.1, just = c(0, 0)))
+  grid.text(x = 0.2, y = 0.5, label = "Silmavärv", just = c(0, 0.5), rot = 90)
+popViewport()
+
+
+
+pushViewport(viewport(x = 0.85, y = 0, height = 1, width = 0.1, just = c(0, 0)))
+  grid.points(x = c(0.1, 0.1), y = c(0.90, 0.95), pch = 19, gp = gpar(col = hcl.colors(2)))
+  grid.text(x = 0.3, y = c(0.90, 0.95), label = c("Mees", "Naine"), just = c(0, 0.5))
+popViewport()
+```
+
+**2.**
+
+```{r}
+
+grid.newpage()
+
+
+
+pushViewport(viewport(x = 0.9, y = 0.9, height = 0.75, width = 0.8, just = c(1, 1)))
+  
+  for (i in seq_len(nrow(eyecolor))) {
+    grid.rect(
+      x = eyecolor$eye_scaled[i] + eyecolor$gender_offset[i],
+      y = eyecolor$count_scaled[i] / 2,
+      width = 0.04, height = eyecolor$count_scaled[i],
+      gp = gpar(fill = eyecolor$gender_color[i], col = "black")
+    )
+  }
+  
+
+  grid.xaxis(at = c(0.2, 0.4, 0.6, 0.8), label = c("Helepruun", "Pruun", "Roheline", "Sinine"))
+  grid.yaxis(at = grid.pretty(c(0, 122)) / max(eyecolor$count), label = grid.pretty(c(0, 122)))
+  
+popViewport()
+
+
+
+pushViewport(viewport(x = 0.8, y = 0.925, height = 0.1, width = 0.7, just = c(1, 0)))
+
+  grid.text(x = 0, y = 0.1, label = "Statistikute silmavärv soo ja värvi lõikes",
+          just = c(0, 0), gp = gpar(fontsize = 18))
+
+popViewport()
+
+
+
+pushViewport(viewport(x = 0.8, y = 0.15, height = 0.15, width = 0.7, just = c(1, 1)))
+  grid.text(x = 0.5, y = 0.1, label = "Silmavärv", just = c(0.5, 0))
+popViewport()
+
+
+
+pushViewport(viewport(x = 0, y = 0.15, height = 0.75, width = 0.1, just = c(0, 0)))
+
+  grid.text(x = 0.2, y = 0.5, label = "Arv", just = c(0, 0.5), rot = 90)
+  
+popViewport()
+
+
+
+
+pushViewport(viewport(x = 0.8, y = 0, height = 1, width = 0.1, just = c(0, 0)))
+
+  grid.rect(x = 0.1, y = c(0.45, 0.55), width = 0.05, height = 0.05,
+            gp = gpar(fill = hcl.colors(2)))
+  grid.text(x = 0.3, y = c(0.45, 0.55), label = c("Mees", "Naine"), just = c(0, 0.5))
+
+popViewport()
+```
+
+\
+
+## Ülesanne 2
+
+-   Proovi joonistada andmestikul `linnad.RData` võimalikult sarnane graafik järgnevaga. Siin on rakendatud terve hulk nippe, mida sai selles ja eelmises praksis õpitud. Punktid kujunevad selle põhjal kui palju neist nippidest on rakendatud. Kui õiget nippi on rakendatud, kuid tulemus pole täpselt identne, siis punkte maha ei võta. Näiteks kui värv pole täpselt õige aga õigel graafiku osal on seda siiski muudetud.
+
+    ![](images/Screenshot%202022-09-20%20at%2022.39.17%201.png)
+
+```{r}
+
+library(ggplot2)
+library(tidyverse)
+library(patchwork)
+library(ggplot2)
+library(dplyr)
+```
+
+```{r}
+
+load("linnad.RData", verbose = T)
+
+linnad
+```
+
+```{r, fig.width=12, fig.height=10}
+
+fill_cols <- c(
+  "Low"    = "#f4a142",
+  "Medium" = "gray90",
+  "High"   = "#7b67c8"
+)
+
+outline_cols <- c(
+  "Low"    = "#e65000",
+  "Medium" = "#e65000",
+  "High"   = "#e65000"
+)
+
+
+data <- linnad %>% 
+  mutate(
+    income_class = fct_recode(income_class, "High" = "Very High", "Low" = "Very Low"),
+    Poverty_factor = fct_relevel(Poverty_factor, "Low", "Medium", "High"),
+    Birth_factor = fct_relevel(Birth_factor, "Low", "Medium", "High") 
+  )
+
+p1 <- ggplot(data, aes(x = Birth_factor, y = over65, fill = Birth_factor)) + 
+    geom_boxplot(fill = NA, color="gray5") +
+    geom_violin(
+      aes(color = Birth_factor),
+     alpha = 0.4, linewidth = 0,
+      draw_quantiles = NULL
+    ) +
+    scale_fill_manual(values = fill_cols) +
+    scale_color_manual(values = outline_cols) +
+    geom_hline(yintercept = 12.5, linetype = "dotted") +
+    facet_wrap(~ State, ncol = 3) + 
+    theme_bw(base_size = 13) +
+    theme(
+      strip.background = element_rect(fill = "#f2b0c4", color = "black"),
+      strip.text = element_text(face = "bold"),
+      panel.grid.major.x = element_blank(),
+      panel.grid.major.y = element_blank(),
+      panel.grid.minor = element_blank(),
+      panel.background = element_rect(fill = "white", color = NA),
+      legend.position = c(1, 0), 
+      legend.justification = c(1, 0),
+      legend.key = element_rect( color="red"),
+    ) 
+
+
+
+p2 <- ggplot(linnad, aes(x = deaths, y = births)) +
+  geom_point(color = "white", size = 2,) +
+  geom_smooth(color = "red", linewidth = 1) +
+  theme_void() +
+  theme(
+    panel.background = element_rect(fill = "black", color = "black"),
+    panel.grid.major = element_line(color = "white", linetype = "dashed"),
+    panel.grid.minor = element_line(color = "white", linetype = "dashed"),
+    axis.text = element_text(color = "black"),
+    axis.title = element_text(color = "black"),
+    plot.background = element_rect(fill = "white", color = "white"),
+    axis.title.y = element_text(angle = 90)
+  ) +
+    scale_x_continuous(name = "Higher education percentage", breaks = c(0, 0.5, 1, 1.5, 2))+
+  labs(x = "deaths", y = "births")
+
+
+p1 / p2 + plot_layout(heights = c(2, 1))
+```
+
+## Ülesanne 3
+
+Failis `ylevaatused.RData` on andmestik kõigi Eestis toime pandud sõidukite tehniliste ülevaatuste kohta. Tunnuste kohta lisainfot palju pole, kuid nimed peaks suht selged olema. Andmestik pärineb eesti avaandmete portaalist: <https://avaandmed.eesti.ee/datasets/maismaasoidukite-tehnoulevaatused-eestis>
+
+Ülesandeks on selle andmestiku põhjal joonistada välja graafik mis toob välja mingi huvitava seose. Andmestik on suur ja graafik ei pea kajastama tervet andmestikku, vaid võib keskenduda mingile andmete alamhulgale.
+
+Sellel graafikul võib olla mitu paneeli, kuid peab olema siiski **üks** fail, mis välja trükkides mahuks ühele lehele ja oleks loetav. Kuna andmed on keerukad võib pildi salvestada suuremana, kui Rstudio graafiku aknasse mahub (kasutades käsku `ggsave` ja argumente `height` ja `width`), et kõigel vajalikul piisavalt ruumi oleks.
+
+Esitada tuleb graafikut genereeriv **kood**, põhjendus miks just antud tüüpi graafik(ud) on nende andmete näitamiseks hea ja ka mõne lauseline **järeldus**, mille te pildilt olete välja lugenud.
+
+Graafik peab vastama järgnevatele tingimustele.
+
+-   Kasutatud on vähemalt 5 erinevat tunnust
+
+-   Kasutatud on vähemalt 2 erinevat geom\_\* funktsiooni
+
+-   On modifitseeritud graafiku elementide väljanägemist ning need muudatused on asjakohased
+
+-   On valitud andmetele sobiv visualiseerimise meetod
+
+-   Graafik ei vaja lisaselgitusi ning on kergesti loetav (kõik tekstid suurte algustähtedega, grammatiliselt korrektsed, piisavalt kirjeldavad).
+
+-   Tekstilised järeldused ja graafik lähevad kokku.
+
+```{r}
+
+library(tidyverse)
+library(patchwork)
+```
+
+```{r}
+
+load("ylevaatused.RData", verbose = T)
+
+ylevaatused
+```
+
+```{r}
+
+ylev <- ylevaatused %>%
+  mutate(
+    RIKKED = ifelse(is.na(RIKKED), "", RIKKED),
+    VIGADE_ARV = ifelse(RIKKED == "", 0, str_count(RIKKED, ";") + 1),
+  ) %>%
+  filter(str_starts(KATEGOORIA, "M") & !is.na(KATEGOORIA)) %>%
+ mutate(KERETYYP_GRUPP = case_when(
+    KERETYYP %in% c("MAHTUNIVERSAAL", "UNIVERSAAL", "LUUKPÄRA", "SEDAAN",
+                    "KUPEE", "LIMUSIIN", "KOMBI") ~ "Sõiduauto",
+
+    KERETYYP %in% c("LAHTINE", "PIKAP", 
+                    "SIHTOTSTARBELINE", "ERIOTSTARBELINE SÕIDUK") ~ "Kaubik / tööauto",
+
+    KERETYYP %in% c("MITMEOTSTARBELINE SÕIDUK") ~ "Mitmeotstarbeline",
+
+    KERETYYP %in% c("BUSS", "LIIGENDBUSS", "KORRUSBUSS", "TROLL") ~ "Buss",
+
+    KERETYYP %in% c("KIIRABI", "MATUSEAUTO", "ELAMU") ~ "Erisõiduk",
+
+    TRUE ~ NA
+  ))
+  #sample_n(20000)
+
+ylev
+```
+
+```{r}
+
+library(scales)
+palett = hue_pal()(8)
+
+kategooria_värvid = c(
+  "M1"     = palett[2],
+  "M1G"    = palett[4],
+  "M2"     = palett[6],
+  "M3"     = palett[8]
+)
+
+
+m1_m1g <- ylev %>%
+  filter(!is.na(ESMANE_REG_AASTA), !is.na(YLEVAATUSOTSUS)) %>%
+  filter(YLEVAATUSOTSUS %in% c("EI_VASTA_NOUETELE", "SOITMISEKS_KOLBMATU")) %>%
+  filter(KATEGOORIA %in% c("M1", "M1G")) %>%
+  ggplot(aes(x = ESMANE_REG_AASTA, color = KATEGOORIA, fill = KATEGOORIA)) +
+  geom_density(alpha = 0.2) +
+  labs(
+    title = "Sõiduautod",
+    x = "Esmane registreerimse aasta",
+    y = "Tihedus",
+    fill = "Kategooria",
+    color = "Kategooria"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "plain", size = 12)) +
+  scale_color_manual(values = kategooria_värvid) +
+  scale_fill_manual(values = kategooria_värvid) 
+
+m2_m3 <- ylev %>%
+  filter(!is.na(ESMANE_REG_AASTA), !is.na(YLEVAATUSOTSUS)) %>%
+  filter(YLEVAATUSOTSUS %in% c("EI_VASTA_NOUETELE", "SOITMISEKS_KOLBMATU")) %>%
+  filter(KATEGOORIA %in% c("M2", "M3")) %>%
+  ggplot(aes(x = ESMANE_REG_AASTA, color = KATEGOORIA, fill = KATEGOORIA)) +
+  geom_density(alpha = 0.2) +
+  labs(
+    title = "Bussid",
+    x = "Esmane registreerimse aasta",
+    y = "Tihedus",
+    fill = "Kategooria",
+    color = "Kategooria"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "plain", size = 12)) +
+  scale_color_manual(values = kategooria_värvid) +
+  scale_fill_manual(values = kategooria_värvid) 
+
+
+graafik1 <- m1_m1g / m2_m3 +
+   plot_layout(guides = "collect") +
+   plot_annotation(
+    title = "Negatiivne ülevaatusotsus",
+    subtitle = "M-kategooria sõidukid",
+    #caption = "Allikas: ?? trust me bro",
+    theme = theme(
+      plot.title = element_text(face = "bold", size = 16),
+      plot.subtitle = element_text(size = 12)
+    )
+  ) 
+
+#graafik1
+```
+
+```{r}
+
+graafik2 <- ylev %>%
+  filter(!is.na(KATEGOORIA), !is.na(KERETYYP_GRUPP)) %>%
+  group_by(KATEGOORIA) %>%
+  ggplot(aes(y = KATEGOORIA, x = VIGADE_ARV, color=KERETYYP_GRUPP)) +
+  geom_point(position = "jitter") +
+  labs(
+    title = "Vigade arv keretüübi kohta",
+    subtitle = "M-kategooria sõidukid",
+    y = "Keretüüp",
+    x = "Vigade Arv",
+    color = "Keretüüp"
+  ) +
+  theme_minimal(base_size = 12) + 
+   theme(
+      plot.title = element_text(face = "bold", size = 16),
+      plot.subtitle = element_text(size = 12)
+    )
+
+#graafik2
+```
+
+```{r, fig.width=12, fig.height=16}
+
+graafik1 / graafik2 + plot_layout(guides = "keep")
+```
+
+## Ülesanne 4
+
+Andmestikus `birth_year.RData` on aasta päevade kaupa toodud ära keskmine sündide arv USAs. Proovige ÜHE graafikuga näidata selles andmestikus midagi huvitavat. Vormistage graafik nii, et see iseseisvalt annaks edasi sõnumi. Järgige selle töö käigus SWD protsessi ja lisaks pildile kirjutage sammude 2-5 kohta mida te iga sammu puhul konkreetselt tegite.
+
+```{r}
+library(tidyverse)
+library(lemon)
+library(scales)
+library(ggrepel)
+
+source("theme.r")
+```
+
+```{r}
+
+load("births_year.RData", verbose = T)
+
+births_year
+```
+
+```{r}
+monthly_avg <- births_year %>%
+  group_by(Month) %>%
+  summarise(AverageBirthsPerMonth = mean(AverageBirths, na.rm = TRUE)) %>%
+  mutate(MonthName = factor(month.abb[Month], levels = month.abb))
+
+
+monthly_avg
+```
+
+```{r}
+
+max_months = c("Jul", "Aug", "Sep")
+
+monthly_avg %>% 
+  mutate(MonthName = factor(MonthName, levels = rev(month.abb))) %>%
+  mutate(
+    fill_color = case_when(
+      MonthName %in% max_months ~ "plum3",
+      TRUE ~ GRAY9
+    )
+  ) %>% 
+  
+  ggplot(aes(y = MonthName, x = AverageBirthsPerMonth, fill = fill_color)) +
+    geom_bar(stat = "identity") +
+    scale_fill_identity() + 
+    ylab("") +
+    xlab("Average Births") +
+    coord_capped_cart(top = "both", right = "both") +
+    scale_x_continuous(position = "top", expand = expansion(mult = c(0, 0.05))) +
+   geom_text(aes(label = trunc(AverageBirthsPerMonth)), color = "white", hjust = 1.25, data = ~ .x %>% filter(MonthName %in% max_months)) +
+    theme_swd() +
+    theme(
+          axis.line.y = element_blank(),
+          #axis.title.y = element_blank(),
+          axis.text.y = element_text(size = 11),
+          axis.text.x = element_text(size = 11),
+          axis.title.x = element_text(size = 12, face = "bold"),
+          axis.title.x.top = element_text(margin = margin(b = 10))
+    ) 
+```

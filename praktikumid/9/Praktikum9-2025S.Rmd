@@ -1,0 +1,644 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+## Sissejuhatus
+
+Loengutes tutvusime graafikute disainimise sammudega raamatust "Storytelling with data" (SWD). Selles raamatus kasutatakse läbivalt erinevaid trikke graafikute ilusamaks muutmisel. R-s nende rakendamine ei pruugi olla alati ilmne. Seetõttu vaatamegi täna erinevaid trikke kuidas SWD tüüpi graafikuid R-s joonistada.
+
+Kellele see raamat ja temas olevate graafikute taasloomine R-s sügavamat huvi pakub võib vaadata lehte <https://github.com/adamribaudo/storytelling-with-data-ggplot> , kus raamatu kõik graafikud on uuesti visualiseeritud ggplot2-ga, püüdes saavutada originaaliga võimalikult sarnane tulemus.
+
+Enne alustamist loeme sisse täna vajaminevad paketid ja andmestikud.
+
+```{r}
+#install.packages("lemon", "ggrepel")
+
+library(tidyverse)
+library(lemon)
+library(scales)
+library(ggrepel)
+
+load("value.RData", verbose = T)
+load("concerns.RData", verbose = T)
+load("tickets.RData", verbose = T)
+```
+
+## Graafiku üldine välimus
+
+SWD raamatus järgitakse järjekindlalt suhteliselt spetsiifilist graafilist stiili. See pole kindlasti ainus ilus viis graafikuid joonistada, kuid kindlasti pole ka paha alguspunkt. Et seda R-s lihtsam järgida oleks defineerime ära kasutatavad värvid ning teljed ja loome endale SWD teemafinktsiooni.
+
+### Värvid
+
+Värvide valik ja strateegiline kasutamine oli SWD õpetustes tähtsal kohal. Raamatus kasutati läbivalt väikest hulka värve, millest enamus olid erinevad halli varjundid ning sinna juurde mõned selgelt eristuvad sinised ja punased värvitoonid. Defineerime need värvid siin ära, et neid saaks praktikumi käigus läbivalt kasutada.
+
+```{r}
+GRAY1 = "#231F20"
+GRAY2 = "#414040"
+GRAY3 = "#555655"
+GRAY4 = "#646369"
+GRAY5 = "#76787B"
+GRAY6 = "#828282"
+GRAY7 = "#929497"
+GRAY8 = "#A6A6A5"
+GRAY9 = "#BFBEBE"
+BLUE1 = "#174A7E"
+BLUE2 = "#4A81BF"
+BLUE3 = "#94B2D7"
+BLUE4 = "#94AFC5"
+BLUE5 = "#22435e"
+BLUE6 = "#95B3D7"
+RED1 = "#C3514E"
+RED2 = "#E6BAB7"
+RED3 = "#800000"
+GREEN1 = "#0C8040"
+GREEN2 = "#9ABB59"
+GREEN3 = "#31859C"
+GREEN4 = "#4BACC6"
+GREEN5 = "#93CDDD"
+ORANGE1 = "#F79747"
+ORANGE2 = "#FAC090"
+
+```
+
+![](images/Screenshot%202021-04-17%20at%2019.45.14.png)
+
+### SWD teemafunktsioon
+
+SWD graafilise stiili üks eesmärk oli eemaldada visuaalset müra ja teiselt poolt, läbi neutraalsete toonide kasutamise, viia tähelepanu eemale graafiku elementidest mis ei anna edasi kõige olulisemat sõnumit. Suure osa sellest saab ära määrata ühes teemafunktsioonis.
+
+```{r}
+theme_swd <- function() {
+  theme_minimal(base_size = 11, base_family = "Helvetica") +
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.line = element_line(size = .13, color = GRAY9),
+      axis.text = element_text(color = GRAY7),
+      axis.ticks.x = element_line(size = 0.5, color = GRAY9),
+      axis.ticks.y = element_line(size = 0.5, color = GRAY9),
+      axis.title = element_text(color = GRAY3),
+      axis.title.y = element_text(hjust = 1, margin = margin(0, 6, 0, 15, "pt")),
+      axis.title.x = element_text(hjust = 0, margin = margin(6, 0, 15, 0, "pt")),
+      plot.subtitle = element_text(color = GRAY4, size= 11),
+      plot.title = element_text(color = GRAY4, size= 15),
+      plot.title.position = "plot", # This aligns the plot title to the very left edge
+      plot.caption = element_text(hjust = 0, color = GRAY6),
+      plot.caption.position = "plot",
+      plot.margin = margin(.5,.5,.5,.5,"cm"),
+      strip.text = element_text(color = GRAY7)) 
+}
+```
+
+Proovime seda kasutada ühe pildi loomisel.
+
+```{r}
+ggplot(value, aes(x = year, y = value, color = product)) +
+  geom_line() +
+  ylim(c(0, 450)) +
+  ylab("Average price") +
+  xlab("Year") + 
+  ggtitle("Retail price", subtitle = "Price changes reflect maturation of product")
+
+
+ggplot(value, aes(x = year, y = value, color = product)) +
+  geom_line() +
+  ylim(c(0, 450)) +
+  ylab("Average price") +
+  xlab("Year") + 
+  ggtitle("Retail price", subtitle = "Price changes reflect maturation of product") +
+  theme_swd() 
+```
+
+See teemafunktsioon annab kätte üldise suuna. Kuid konkreetse pildi puhul tasub alati veel konkreetsete `theme` funktsiooni parameetritega mängida.
+
+Selleks, et neid funktsioone ka tulevikus hea oleks kasutada saame nad kirjutada faili mille me oma mõne muu skripti alguses saame sisse lugeda.
+
+```{r}
+source("theme.r")
+```
+
+Kellele meeldib taolist koodi veel mugavamalt kasutada erinevates projektides, võib oma koodi muuta ka R paketiks. Nii saab selle korra ära installida ja igas konkreetses skriptis `library` käsuga sisse lugeda.
+
+### Teljed
+
+Kuna paljudel SWD graafikutel on üritatud võimalusel telgi elimineerida või vähemalt minimeerida. On kasulik teada funktsiooni `coord_capped_cart` paketist `lemon`, mis lõpetab telje ära maksimaalse *tick*-i juures.
+
+```{r}
+ggplot(concerns, aes(x = concerns, y = category)) +
+  geom_bar(stat = "identity") +
+  ylab("") +
+  xlab("Number of concerns") +
+  theme_swd()
+
+
+ggplot(concerns, aes(x = concerns, y = category)) +
+  geom_bar(stat = "identity") +
+  ylab("") +
+  xlab("Number of concerns") +
+  theme_swd() +
+  coord_capped_cart(bottom = 'both', left = "both") 
+```
+
+Sellise telje kasutamisel peavad olema teema funktsioonis defineeritud järgnevad parameetrid `panel.border = element_blank(), axis.line=element_line()` nagu funktsioonis `theme_swd`. Vastasel juhul saame müstilise errori.
+
+Mõne graafiku puhul on mõistlik ka telgede asukohta vahetada. Näiteks tõsta x-telg alt ülesse. Seda saab määrata `scale_x_*` parameetriga `position`. Sama moodi töötab y telje nihutamine.
+
+```{r}
+ggplot(concerns, aes(x = concerns, y = category)) +
+  geom_bar(stat = "identity") +
+  ylab("") +
+  xlab("Number of concerns") +
+  scale_x_continuous(position = "top") +
+  coord_capped_cart(top = 'both') +
+  theme_swd() 
+
+ggplot(concerns, aes(x = concerns, y = category)) +
+  geom_bar(stat = "identity") +
+  ylab("") +
+  xlab("Number of concerns") +
+  scale_x_continuous(position = "top") +
+  scale_y_discrete(position = "right") +
+  coord_capped_cart(top = 'both', right = "both") +
+  theme_swd() 
+
+  # coord_capped_flip(top = 'both', right = "both") 
+```
+
+Et andmete ümber jääks õhku, ulatub graafiku ala tavaliselt natuke minimaalsest ja maksimaalsest väärtusest kaugemale. Enamasti on see väga kasulik omadus, kuid vahest jääb tulemus ilusam, kui seda ruumi mitte jätta. Seda aspekti saab kontrollida `scales_*_continuous` funktsioonides parameetriga `expand` mille väärtuseks tuleb anda funktsioon expansion soovitud parameetritega. Parameeeter `mult` korrutab graafiku laiuse mingi konstandiga läbi. Andes ette 2 elemendilise vektori saab kontrollida seda käitumist skaala mõlemalt poolt.
+
+```{r}
+ggplot(concerns, aes(x = concerns, y = category)) +
+  geom_bar(stat = "identity") +
+  ylab("") +
+  xlab("Number of concerns") +
+  scale_x_continuous(position = "top", expand = expansion(mult = c(0, 0.05))) +
+  coord_capped_cart(top = 'both') +
+  theme_swd() 
+```
+
+#### Telje formaadid
+
+Telgedel olevad numbrid võivad kujutada erinevaid suurusi, millele tavaliselt lisatakse veel mõni sümbol või formaaditakse omapäraselt. Näiteks võib tuua rahanumbrid, protsendid, kuupäevad, mõõtühikud, jne. Tihti tekib telgedele ka "teaduslikus formaadis" numbreid mida on keeruline lugeda. Käsitsi sellist formaatimist teha on võimalik aga suhteliselt tüütu. Õnneks saab seda lihtsasti kontrollida, kui anda ette funktsioon mis väärtuste väljanägemist telgedel teisendab. Palju selliseid funktsioone on defineeritud `scales` paketis ning nenede nimed on kujul `label_*`. Kiire ülevaate saab lehelt <https://scales.r-lib.org/reference/index.html>.
+
+```{r}
+ggplot(concerns, aes(x = concerns, y = category)) +
+  geom_bar(stat = "identity") +
+  ylab("") +
+  xlab("Number of concerns") +
+  # scale_x_continuous(labels = label_dollar()) +
+  scale_x_continuous(labels = label_dollar(prefix = "€")) +
+  # scale_x_continuous(labels = label_percent()) +
+  scale_y_discrete(labels = label_wrap(width = 40)) +
+  coord_capped_cart(top = 'both') +
+  theme_swd() 
+
+```
+
+### Faktorite ümberjärjestamine
+
+Telgedega seostub ka teine teema, milleks on faktorite ümberjärjestamine. Nimelt on diskreetsete skaalade järjestus defineeritud faktori tasemete järjestuse kaudu. Skaala järjestuse muutmisega on võimalik graafikul esile tuua erinevaid seoseid või muuta lugemist lihtsamaks tagades andmetele loomuliku esituse.
+
+Eelnevates praktikumides oleme juba vaadanud käsku factor ja ka käske `fct_relevel` ja `fct_reorder`. Tuletame neid veel korra meelde.
+
+```{r}
+f = factor(c("A", "B", "C", "D", "E"), levels = c("C", "E", "A", "D", "B"))
+
+fct_relevel(f, "A")
+fct_relevel(f, "A", "B")
+
+fct_relevel(f, "A", after = 1)
+fct_relevel(f, "A", "B", after = 1)
+
+fct_relevel(f, sort)
+fct_relevel(f, rev)
+
+
+ggplot(concerns, aes(x = concerns, y = category)) +
+  geom_bar(stat = "identity")
+
+concerns %>% 
+  mutate(category = fct_relevel(category, "Excessive wind noise")) %>% 
+  ggplot(aes(x = concerns, y = category)) +
+    geom_bar(stat = "identity")
+```
+
+Käsk fct_reorder võimaldab muuta faktori tasemete järjekorda mõne teise tunnuse põhjal. Kui faktori samale tasemele vastab mitu elementi, siis rakendadtakse neile muutujatele kaasa antud funktsiooni (vaikimisi `median`).
+
+```{r}
+f = factor(c("A", "B", "C", "D", "E"))
+v = c(4, 1, 2, 5, 6)
+
+fct_reorder(f, v)
+fct_reorder(f, v, .desc = T)
+
+ggplot(concerns, aes(x = concerns, y = category)) +
+  geom_bar(stat = "identity")
+
+concerns %>% 
+  mutate(category = fct_reorder(category, concerns)) %>% 
+  ggplot(aes(x = concerns, y = category)) +
+    geom_bar(stat = "identity")
+```
+
+#### Ülesanne
+
+Täiendage all olevat koodi nii, et saaksite pildil näidatud tulemuse.
+
+```{r}
+tickets %>% 
+  filter(ticket_type == "Processed") %>% 
+  ggplot(aes(x = tickets, y = month)) + 
+    geom_bar(stat = "identity")
+```
+
+![](images/Screenshot%202021-04-17%20at%2022.40.00.png)
+
+```{r}
+tickets 
+```
+
+```{r}
+tickets %>% 
+  filter(ticket_type == "Processed") %>% 
+  mutate(month = fct_reorder(month, tickets)) %>% 
+  ggplot(aes(x = tickets, y = month)) + 
+    geom_bar(stat = "identity", fill = ORANGE2) + 
+    scale_x_continuous(position = "top", expand = expansion(mult = c(0, 0.05))) +
+  coord_capped_cart(top = 'both') +
+  theme_swd() +
+  theme(
+    axis.title.y = element_blank(),
+    axis.line.y = element_blank(),
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_text(size = 10)
+  )
+```
+
+## Värvidega elementide esile toomine
+
+Värvi kasutamine on SWD-s oluline teema. See raamat rõhutab just värvi rolli olulise info esile toomisel. Sisuliselt soovitatakse skeemi kus enamus andmeid on kujutatud suhteliselt neutraalse halli tooniga ning välja toodav element on siis värvilisem, kas sinine või näiteks punane. Nii on kohe selge millisele elemendile me oma tähelepanu juhtima peame. Selline loogika läheb aga vastuollu standardsete `ggplot2` värvisekeemidega ning taolise efekti saavutamiseks peame rohkem tööd tegema.
+
+Värvivektor võiks aga olla kujul, kus siis mingi tingimuse järgi on valitud välja esile tõstmist vajavad kategooriad ja siis ülejäänud. Kõige lihtsam on kasutada värvivektori defineerimiseks käske `case_when`. Sisuliselt võimaldab see lihtsamal kujul panna kirja uue muutuja defineerimise läbi hulga if lausete.
+
+```{r}
+x = 1:10
+
+case_when(
+  x < 4 ~ "väike",
+  x > 8 ~ "suur",
+  TRUE ~ "keskmine"
+)
+```
+
+Loogiliste tingimuste puhul saab kasutada ka mitme tunnuse väärtuseid.
+
+```{r}
+x = 1:10
+y = sample(1:10)
+
+case_when(
+  x  + y > 10 ~ "Summa üle 10",
+  TRUE ~ "Alla 10"
+)
+```
+
+Kui panna mitu tingimust, siis muudetakse ainult neid väärtusi mida eelmised tingimused pole muutnud.
+
+```{r}
+x = 1:10
+
+case_when(
+  x <= 5 ~ "väike",
+  x > 3 ~ "suur",
+  TRUE ~ "keskmine"
+)
+```
+
+Nüüd värvide pildile saamine vajab kolme sammu. Esiteks määrame igale muutuja väärtusele konkreetse värvi. Teiseks, vaikimisi defineeritakse tulbad/jooned tunnuse `fill` või `color` väärtuste järgi. Nüüd aga on mitmel tulbal sama värv ja see ei tööta. Selleks, peame eraldi määrama `group` muutuja. Kolmandaks pole meil `fill` väärtuseks mitte tunnuse nimed (nagu näiteks month) vaid värvid ise, et R neid mõistlikult joonistaks kasutame käsku `scale_fill_identity`.
+
+```{r}
+value %>% 
+  mutate(
+    line_color = case_when(
+      product == "Product C" ~ BLUE2,
+      # product %in% c("Product A", "Product B") ~ GREEN1,
+      TRUE ~ GRAY9
+    )
+  ) %>% 
+  ggplot(aes(x = year, y = value, color = line_color, group = product)) +
+    geom_line() +
+    ylim(c(0, 450)) +
+    ylab("Average price") +
+    xlab("Year") + 
+    scale_colour_identity() +
+    ggtitle("Retail price", subtitle = "Price changes reflect maturation of product") +
+    theme_swd() 
+
+
+
+concerns %>%
+  mutate(category = fct_reorder(category, concerns)) %>% 
+  mutate(
+    fill_color = case_when(
+      category %in% c("Tires make excessive noise while driving", "Excessive wind noise", "Engine makes abnormal/excessive noise") ~ RED1,
+      concerns > 10 ~ RED2,
+      TRUE ~ GRAY9
+    )
+  ) %>% 
+  ggplot(aes(x = concerns, y = category, fill = fill_color)) +
+    geom_bar(stat = "identity") +
+    scale_fill_identity() + 
+    theme_swd()
+```
+
+#### Ülesanne
+
+Täienda eelmise ülesande koodi nii, et tulemus näeks välja järgnev.
+
+![](images/Screenshot%202021-04-18%20at%2023.25.41.png)
+
+```{r}
+tickets %>% 
+  filter(ticket_type == "Processed") %>% 
+  mutate(month = fct_reorder(month, tickets)) %>% 
+  mutate(
+    fill_color = case_when(
+      month %in% c("Mar", "Feb", "May") ~ BLUE2,
+      TRUE ~ GRAY9
+    )
+  ) %>% 
+  ggplot(aes(x = tickets, y = month, fill = fill_color)) + 
+    geom_bar(stat = "identity") + 
+    scale_x_continuous(position = "top", expand = expansion(mult = c(0, 0.05))) +
+  coord_capped_cart(top = 'both') +
+  scale_fill_identity() + 
+  theme_swd() +
+  theme(
+    axis.title.y = element_blank(),
+    axis.line.y = element_blank(),
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_text(size = 10)
+  )
+```
+
+## Tekstide lisamine graafikule
+
+Tekstide strateegilise kasutamisega saab graafikul saavutada päris palju. Saab elimineerida legendi annoteerides elemente, näiteks jooni, otse graafikul. Saab tuua esile olulisi väärtuseid. Saab lisada kirjeldusi graafiku võtmekohtdasesse.
+
+Vaatame nüüd mõnda võimalust lähemalt.
+
+### Joontele nimede lisamine
+
+Kui graafikul on jooni vähe on mõislik nad annoteerida tekstiga joonte otstes. Sõltuvalt graafiku kujust võib annoteerida nii joone algust kui lõppu aga lõpp on tihti loogilisem. Selleks et lisada teksti ühte joone otsa peame me igale joonele leidma kas minimaalse või maksimaalse punkti ning sellel punktile siis joonistama vastava teksti. Teksti joondamiseks saab kasutada parameetreid `hjust` ja `vjust` ning `nudge_x` ja `nudge_y`. Selleks, et tekstid pildile ära mahuks tuleb võibolla pilti laiemaks teha, käsuga `xlim`.
+
+```{r}
+labels = value %>% 
+  group_by(product) %>% 
+  filter(year == max(year))
+
+ggplot(value, aes(x = year, y = value, group = product)) +
+    geom_line(color = GRAY9) +
+    geom_text(aes(x = year, y = value, label = product), color = GRAY6, hjust = 0, nudge_x = 0.1, data = labels) +
+     #geom_text_repel(aes(x = year, y = value, label = product), color = GRAY6, hjust = 0, nudge_x = 0.1, direction = "y", data = labels) +
+    ylim(c(0, 450)) +
+    xlim(c(2008, 2016)) +
+    ylab("Average price") +
+    xlab("Year") + 
+    ggtitle("Retail price", subtitle = "Price changes reflect maturation of product") +
+    theme_swd() 
+```
+
+Antud juhul on võibolla mõistlikum silditada joonte teisi otsi, sest need pole nii kobaras koos. Kuna sõna Product kordub igas nimes võib ka selle ära jätta.
+
+```{r}
+labels = value %>% 
+  group_by(product) %>% 
+  filter(year == min(year))
+
+ggplot(value, aes(x = year, y = value, group = product)) +
+    geom_line(color = GRAY9) +
+    geom_text(aes(x = year, y = value, label = product_letter), color = GRAY6, hjust = 1, vjust = 1, nudge_x = -0.05, data = labels) +
+    #geom_text_repel(aes(x = year, y = value, label = product), color = GRAY6, hjust = 0, nudge_x = 0.1, direction = "y", data = labels) +
+    ylim(c(0, 450)) +
+    xlim(c(2007.5, 2014)) +
+    ylab("Average price") +
+    xlab("Year") + 
+    ggtitle("Retail price", subtitle = "Price changes reflect maturation of product") +
+    theme_swd() 
+```
+
+### Oluliste väärtuste lisamine pildile
+
+Oluliste väärtuste lisamist oleme käsitlenud ka varasemates praktikumides, näiteks graafide juures. Sisuliselt tuleb võtta alamhulk olulistest väärtustest ning need siis teksti ja või punktidena pildile kanda. Alamhulga võtmine käis läbi data parameetris funktsiooni defineerimise.
+
+```{r}
+ggplot(value, aes(x = year, y = value, group = product)) +
+    geom_line(color = GRAY9) +
+    geom_point(color = GRAY9, data = ~ .x %>% filter(product == "Product A")) +
+    #geom_text(aes(label = value), color = GRAY9, vjust = 0, nudge_y = 15, data = ~ .x %>% filter(product == "Product A")) +
+  geom_text(aes(label = value), color = GRAY9, vjust = 0, nudge_y = 15, data = function(.x) { .x %>% filter(product == "Product A")}) +
+    ylim(c(0, 450)) +
+    ylab("Average price") +
+    xlab("Year") + 
+    ggtitle("Retail price", subtitle = "Price changes reflect maturation of product") +
+    theme_swd()
+```
+
+#### Ülesanne
+
+Täiendage eelmistes ülesannetes alustatud pilti nii, et see näeks välja järgnev.
+
+![](images/Screenshot%202021-04-18%20at%2023.32.01.png)
+
+```{r}
+
+
+
+tickets %>% 
+  filter(ticket_type == "Processed") %>% 
+  mutate(month = fct_reorder(month, tickets)) %>% 
+  mutate(
+    fill_color = case_when(
+      month %in% c("Mar", "Feb", "May") ~ BLUE2,
+      TRUE ~ GRAY9
+    )
+  ) %>% 
+  ggplot(aes(x = tickets, y = month, fill = fill_color)) + 
+    geom_bar(stat = "identity") + 
+    scale_x_continuous(position = "top", expand = expansion(mult = c(0, 0.05))) +
+  coord_capped_cart(top = 'both') +
+  scale_fill_identity() + 
+  geom_text(aes(label = max(tickets)), color = "white", hjust = 1.25, data = ~ .x %>% filter(month %in% c("Mar", "Feb", "May"))) +
+  theme_swd() +
+  theme(
+    axis.title.y = element_blank(),
+    axis.line.y = element_blank(),
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_text(size = 10)
+  )
+```
+
+![](images/clipboard-3412185537.png)
+
+## *Storytelling with data* sammud
+
+SWD raamat jagas nõuanded kuueks sammuks.
+
+-   Mõista konteksti
+
+-   Vali sobiv visualisatsioon
+
+-   **Eemalda visuaalne müra**
+
+-   **Fokuseeri tähelepanu olulisele**
+
+-   **Mõtle nagu disainer**
+
+-   Räägi lugu
+
+Siit sammude 3-5 jaoks me oleme selle praktikumi käigus nippe õppinud. Proovime selle nüüd ühel pildil ka kõik kokku panna. Kasutame sama näidet mis raamatus kasutajatoele saabunud ja lahendatud juhtumite arvu kohta.
+
+```{r}
+tickets
+
+tickets %>% 
+  mutate(month = fct_reorder(month, date)) %>% 
+  ggplot(aes(x = month, y = tickets, group = ticket_type, color = ticket_type)) +
+    geom_line() +
+    ylim(c(0, 250))
+```
+
+### Eemalda visuaalne müra
+
+Visuaaalseks müraks siin kohal on vaikimisi taust koos joontega ning liiga äkiline joonte värv. Suure osa sellest tööst teeb ära meie jaoks käsk `theme_swd`. Legendist saame lahti kui annoteerime jooned otse tekstiga.
+
+```{r}
+tickets %>% 
+  mutate(month = fct_reorder(month, date)) %>% 
+  ggplot(aes(x = month, y = tickets, group = ticket_type)) +
+    geom_line(color = GRAY9) +
+    geom_text(aes(label = ticket_type), color = GRAY7, hjust = 0, nudge_x = 0.15, data = ~ .x %>% filter(month == "Dec")) +
+    ylim(c(0, 250)) +
+    scale_x_discrete(expand = expansion(mult = c(0, 0.2))) +
+    theme_swd()
+```
+
+### Fokuseeri tähelepanu
+
+Praegu on pilt suhteliselt hall toome välja ühe joone värviga, et erinevs oleks selge.
+
+```{r}
+labels = tickets %>% 
+  filter(month == "Dec")
+
+tickets %>% 
+  mutate(month = fct_reorder(month, date)) %>% 
+  mutate(
+    line_color = case_when(
+      ticket_type == "Processed" ~ BLUE2,
+      TRUE ~ GRAY7
+    )
+  ) %>% 
+  ggplot(aes(x = month, y = tickets, group = ticket_type, color = line_color)) +
+    geom_line() +
+    geom_text(aes(label = ticket_type, color = line_color), hjust = 0, nudge_x = 0.15, data = ~ .x %>% filter(month == "Dec")) +
+    ylim(c(0, 250)) +
+    scale_x_discrete(expand = expansion(mult = c(0, 0.2))) +
+    scale_color_identity() +
+    theme_swd()
+```
+
+### Mõtle nagu disainer
+
+Selle sammu mõte on vaadata konkreetset pilti ja leida viise kuidas seda pilti veel loetavamaks ja arusaadavamaks teha. See hõlmab nii visuaalseid detaile kui annotatsioone mis teevad elu lihtsamaks. Siinkohal saame tuua välja numbriliselt väärtused alates juunist kui erinevus hakkas tekkima ning lisada selged pealkirjad.
+
+```{r}
+labels = tickets %>% 
+  filter(month == "Dec")
+
+tickets %>% 
+  mutate(month = fct_reorder(month, date)) %>% 
+  mutate(
+    line_color = case_when(
+      ticket_type == "Processed" ~ BLUE2,
+      TRUE ~ GRAY7
+    )
+  ) %>% 
+  ggplot(aes(x = month, y = tickets, group = ticket_type, color = line_color)) +
+    geom_line() +
+    geom_text(aes(label = ticket_type, color = line_color), hjust = 0, nudge_x = 0.15, data = ~ .x %>% filter(month == "Dec")) +
+    geom_point(data = ~ .x %>% filter(month %in% c("Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))) +
+    # geom_text_repel(aes(label = tickets), direction = "y", data = ~ .x %>% filter(month %in% c("Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))) +
+    geom_text(aes(label = tickets), vjust = 1.3, data = ~ .x %>% filter(ticket_type == "Processed") %>% filter(month %in% c("Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))) +
+    geom_text(aes(label = tickets), vjust = -0.3, data = ~ .x %>% filter(ticket_type == "Received") %>% filter(month %in% c("Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))) +
+    ylim(c(0, 250)) +
+    scale_x_discrete(expand = expansion(mult = c(0, 0.2))) +
+    scale_color_identity() +
+    ggtitle("Tickets received/processed", subtitle = "Number of tickets processed has lagged after two employees left") +
+    theme_swd()
+```
+
+## Koduülesanne
+
+Andmestikus `birth_year.RData` on aasta päevade kaupa toodud ära keskmine sündide arv USAs. Proovige ÜHE graafikuga näidata selles andmestikus midagi huvitavat. Vormistage graafik nii, et see iseseisvalt annaks edasi sõnumi. Järgige selle töö käigus SWD protsessi ja lisaks pildile kirjutage sammude 2-5 kohta mida te iga sammu puhul konkreetselt tegite.
+
+```{r}
+source("theme.r")
+```
+
+```{r}
+
+load("births_year.RData", verbose = T)
+
+births_year
+```
+
+monthly_avg
+
+```{r}
+
+  
+monthly_avg <- births_year %>%
+  group_by(Month) %>%
+  summarise(AverageBirthsPerMonth = mean(AverageBirths, na.rm = TRUE)) %>%
+  mutate(MonthName = factor(month.abb[Month], levels = month.abb))
+
+
+  
+monthly_avg
+
+```
+
+```{r}
+
+max_months = c("Jul", "Aug", "Sep")
+
+monthly_avg %>% 
+  mutate(MonthName = factor(MonthName, levels = rev(month.abb))) %>%
+  mutate(
+    fill_color = case_when(
+      MonthName %in% max_months ~ "plum3",
+      TRUE ~ GRAY9
+    )
+  ) %>% 
+  
+  ggplot(aes(y = MonthName, x = AverageBirthsPerMonth, fill = fill_color)) +
+    geom_bar(stat = "identity") +
+    scale_fill_identity() + 
+    ylab("") +
+    xlab("Average Births") +
+    coord_capped_cart(top = "both", right = "both") +
+    scale_x_continuous(position = "top", expand = expansion(mult = c(0, 0.05))) +
+   geom_text(aes(label = trunc(AverageBirthsPerMonth)), color = "white", hjust = 1.25, data = ~ .x %>% filter(MonthName %in% max_months)) +
+    theme_swd() +
+    theme(
+          axis.line.y = element_blank(),
+          #axis.title.y = element_blank(),
+          axis.text.y = element_text(size = 11),
+          axis.text.x = element_text(size = 11),
+          axis.title.x = element_text(size = 12, face = "bold"),
+          axis.title.x.top = element_text(margin = margin(b = 10))
+    ) 
+    
+```

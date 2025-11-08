@@ -1,0 +1,3 @@
+load("/Users/raivokolde/Library/CloudStorage/GoogleDrive-raivo.kolde@ut.ee/My Drive/Kool/DataViz/2025S-Kodutööd-Hinded/Kodutoo2/2025S-Kodutoo2/test.RData")
+test
+load("/Users/raivokolde/Library/CloudStorage/GoogleDrive-raivo.kolde@ut.ee/My Drive/Kool/DataViz/2025S-Kodutööd-Hinded/Kodutoo2/2025S-Kodutoo2/test.RData", verbose = T)
