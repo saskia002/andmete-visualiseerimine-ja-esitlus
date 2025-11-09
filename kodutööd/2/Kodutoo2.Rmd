@@ -403,9 +403,9 @@ graafik2 <- ylev %>%
   ggplot(aes(y = KATEGOORIA, x = VIGADE_ARV, color=KERETYYP_GRUPP)) +
   geom_point(position = "jitter") +
   labs(
-    title = "Vigade arv keretüübi kohta",
+    title = "Vigade arv kategooria järgi", 
     subtitle = "M-kategooria sõidukid",
-    y = "Keretüüp",
+    y = "Kategooria",
     x = "Vigade Arv",
     color = "Keretüüp"
   ) +
@@ -422,6 +422,19 @@ graafik2 <- ylev %>%
 
 graafik1 / graafik2 + plot_layout(guides = "keep")
 ```
+
+**Ma tahtsin uurida järgnevat:**
+
+1.  Mida vanem auto seda suurema tõenäosusega kukub ülevaatusel auto läbi.
+
+2.  Sõiduautodel on tavaliselt rohkem vigu kui bussidel, kuna autosid on rohkem teedel kui busse.
+
+**Järeldused:**
+
+1.  **Sõiduautod**: Mida vanem auto, seda suurem on tõenäosus ülevaatusel läbi kukkuda.\
+    **Bussid**: Vanus ei selgita otseslet läbikukkumist. Busside puhul mõjutab tulemust pigem asutusintensiivsus (suurem aastane läbisõit), mistõttu võivad ka uuemad bussid sagedamini läbi kukkuda.
+
+2.  Sõiduautodel on rohkem äärmuslikke vigade väärtusi, kuna sõiduautosid on valimis tunduvalt rohkem kui busse. Valimi suurus tekitab loomulikult suurema hajuvuse.
 
 ## Ülesanne 4
 
