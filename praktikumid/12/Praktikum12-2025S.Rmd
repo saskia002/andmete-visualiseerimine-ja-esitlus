@@ -1,0 +1,502 @@
+---
+title: "Praktikum 11 - Kaardid"
+output: html_notebook
+---
+
+## Sissejuhatus
+
+Tänane praktikum on esimene kahest, kus vaatame kaardiandmeid. Me kasutame kaardiandmete jaoks simple features formaati mida `R`-s implementeerib pakett nimega `sf`. Loeme sisse ka paketi `osmdata`, millega vaatame pärastpoole kuidas tõmmata Open Street Maps kaardiinfot.
+
+```{r}
+install.packages("devtools")
+devtools::install_github("yutannihilation/ggsflabel") 
+# , type="win.binary" 
+devtools::install_github("ropensci/rnaturalearthhires")
+
+library(sf)
+library(osmdata)
+library(tidyverse)
+library(ggsflabel)
+library(rnaturalearthhires)
+```
+
+## Kaardiandmed ja nende näitamine
+
+Näidisandmestikuna kasutame Eesti maakondade ja valdade andmestikku.
+
+```{r}
+load("eesti.RData", verbose = T)
+```
+
+Need andmed on formaadis `sf`, mis on sisuliselt andmetabel, kus on üks veerg (tavaliselt nimega `geometry`) milles hoitakse vektorkujul objekti esitust. Lisaks on sellele tabelil eraldi päis mis hoiab informatsiooni andmete tüübi, asukoha ja projektsiooni kohta.
+
+```{r}
+maakond
+```
+
+Tunnus `geometry` võib olla kujul POINT, LINE, POLYGON, MULTIPOINT, MULTILINE ja MULTIPOLYGON. Iga sf objekt sisaldab vaid ühte tüüpi geometry elemente.
+
+Sisuliselt saab sellele andmetabelil teha kõiki operatsioone, mida me saame teha tavalise andmetabeliga.
+
+```{r}
+vald %>% 
+  mutate(Linn = str_detect(ONIMI, "linn"))
+
+vald %>% 
+  filter(MNIMI == "Saare maakond")
+```
+
+Andmeid `sf` formaadis saab visualiseerida `ggplot2`-ga. Selleks on olemas eraldi funktsioon `geom_sf`.
+
+```{r}
+ggplot(maakond) +
+  geom_sf()
+
+ggplot(maakond) +
+  geom_sf(color = "orange", fill = "lightblue")
+```
+
+Erinevatel kihtidel saab näidata erinevaid andmestikke.
+
+```{r}
+ggplot(maakond) +
+  geom_sf(fill = "lightblue") +
+  geom_sf(color = "orange", data = vald %>% filter(MNIMI == "Harju maakond")) 
+```
+
+Et geograafilisi andmeid saaks paremini sildistada on loodud funktsioonid `geom_label_sf` ja `geom_text_sf`.
+
+```{r}
+ggplot(maakond) +
+  geom_sf(fill = "lightblue") +
+  geom_sf_label(aes(label = MNIMI))
+
+ggplot(maakond) +
+  geom_sf(fill = "lightblue") +
+  geom_sf_text(aes(label = MNIMI))
+```
+
+Paketis `ggsflabel` mille me alguses installisime ja sisse lugesime on defineeritud ka eraldi käsud `geom_sf_text_repel` ja `geom_sf_label_repel`, mis proovivad leida sellised positsioonid siltidele, et need ei kattuks.
+
+```{r}
+library(ggsflabel)
+
+ggplot(maakond) +
+  geom_sf(fill = "lightblue") +
+  geom_sf_label_repel(aes(label = MNIMI))
+
+ggplot(maakond) +
+  geom_sf(fill = "lightblue") +
+  geom_sf_text_repel(aes(label = MNIMI))
+```
+
+Kasutades sama süntaksit nagu me rakendasime võrgustike puhul saame me ka siin siltide arvu vähendada, võttes andmestikust alamhulki.
+
+```{r}
+ggplot(maakond) +
+  geom_sf(fill = "lightblue") +
+  geom_sf_label(aes(label = MNIMI), data = ~ .x %>% filter(MNIMI %in% c("Hiiu maakond", "Saare maakond"))) 
+```
+
+Loomulikult saab pildil muuta ka tausta ja väljanägemist kasutades `theme_*` funktsioone. Nagu võrgustikegi puhul, on `theme_void` hea valik, et puhtamaid pilte saada. Kuid ka muud funktsioonid, näiteks `theme_bw`, töötavad.
+
+```{r}
+ggplot(maakond) +
+  geom_sf(fill = "lightblue") +
+  geom_sf_label(aes(label = MNIMI), data = ~ .x %>% filter(MNIMI %in% c("Hiiu maakond", "Saare maakond"))) +
+  theme_bw()
+
+ggplot(maakond) +
+  geom_sf(fill = "lightblue") +
+  geom_sf_label(aes(label = MNIMI), data = ~ .x %>% filter(MNIMI %in% c("Hiiu maakond", "Saare maakond"))) +
+  theme_void()
+```
+
+Et kaart oleks efektsem võib muuta ka muid parameetreid. Näiteks kaardid tumedal taustal näevad tihti välja väga pilkupüüdvad.
+
+```{r}
+ggplot(maakond) +
+  geom_sf(fill = NA, color = "white") +
+  theme_void() +
+  theme(plot.background = element_rect(fill = "black"))
+```
+
+Kaartidele lisatakse tihti ka mõõtkava ja nooleke mis näitab kus suunas on põhi. Ka meie joonistatud graafikutel on see võimalik, kasutades paketti `ggspatial`, ning sealt funktsioone `annotation_scale` ja `annotation_north_arrow`.
+
+```{r}
+library(ggspatial)
+
+ggplot(maakond) +
+  geom_sf(fill = "lightblue") +
+  geom_sf_label(aes(label = MNIMI), data = ~ .x %>% filter(MNIMI %in% c("Hiiu maakond", "Saare maakond"))) +
+  annotation_scale(location = "bl", width_hint = 0.3) +
+  annotation_north_arrow(location = "bl", pad_y = unit(0.3, "in"), style = north_arrow_fancy_orienteering()) +
+  theme_void()
+
+```
+
+#### Ülesanne
+
+-   Joonista kaart Harjumaa valdadest (heledamat värvi taustaga) ning lisa sellele Tallinn tumedama taustaga. Tallinna juurde pane ka silt linna nimega. Eemaldage pildilt ka kõik teljed ja muu ning lisage üles vasakusse nurka skaala ja põhjasuunaline nool.
+
+```{r}
+maakond
+```
+
+```{r}
+
+
+vald %>% 
+  filter(MNIMI == "Harju maakond") %>%
+  ggplot() +
+  geom_sf(fill = "gray90") +
+  geom_sf(fill = "gray30", data = ~ .x %>% filter(ONIMI == "Tallinn")) +
+  geom_sf_text(aes(label = ONIMI), color = "white", data = ~ .x %>% filter(ONIMI == "Tallinn")) +
+  annotation_scale(location = "tl", width_hint = 0.3) +
+  annotation_north_arrow(location = "tl", pad_y = unit(0.25, "in"), style = north_arrow_nautical()) +
+  theme_void()
+
+```
+
+## Värvitud kaardid
+
+Üks levinumaid kaartide kasutusalasid andmeteaduses on mingi tunnuse järgi värvitud kaardid (*i.k cloropeth maps*). Eelneva põhjal pole väga raske arvata kuidas nende joonistamine võib käia, kuna saame kasutada sarnaseid `ggplot2` nippe nagu eelnevateski praktikumides. Enne aga kui läheme kaartide joonistamise juurde loeme sisse andmestiku, mis kirjeldab koroonavaktsineerimise hetkeseisu vanusegruppides ja soo kaupa kuupäva 12/10/2021 seisuga.
+
+```{r}
+load("vaktsiin2.RData", verbose = T)
+
+vaktsiin
+```
+
+Selleks, et meil tekiks lihtsam andmestik mida uurida summeerime arvud maakonna kaupa.
+
+```{r}
+v = vaktsiin %>% 
+  group_by(County) %>% 
+  summarize(
+    TotalCount = sum(TotalCount),
+    TotalPopulation = sum(Population)
+  ) 
+
+v
+```
+
+Nüüd saame selle andmestiku liita olemasolevale maakonna andmestikule. Selleks otstarbeks saab kasutada `*_join` perekonna käskusid. Need on analoogsed SQL join käskudega ja sinna perekonda kuuluvad.
+
+-   `left_join` - jätab alles kõik read vasakpoolsest tabelist
+
+-   `right_join` - jätab alles kõik read parempoolsest tabelist
+
+-   `full_join` - jätab alles kõik read mõlemast tabelist
+
+-   `inner_join` - jätab alles read mis on olemas mõlemas tabelis
+
+Ühendamine käib vaikimis tunnuste alusel millel on sama nimi. Ühendame nüüd tabelid `v` ja `maakond`. Pane tähele, et tasub ühendada andmed sf objekti külge mitte vastupidi, sest muidu muutub objekti tüüp .
+
+```{r}
+vm = maakond %>% 
+  left_join(v %>% rename(MNIMI = County))
+
+vm
+
+v %>% 
+  rename(MNIMI = County) %>% 
+  left_join(maakond)
+```
+
+Nüüd saame joonistada kaardi mis on värvitud vaktsineerimiste arvu järgi.
+
+```{r}
+ggplot(vm) + 
+  geom_sf(aes(fill = TotalCount/TotalPopulation))
+```
+
+Seda pilti saab modifitseerida kasutades ggplot2-st tuttavaid võtteid.
+
+```{r}
+ggplot(vm) + 
+  geom_sf(aes(fill = TotalCount/TotalPopulation)) +
+  geom_sf_text(aes(label = round(TotalCount/TotalPopulation, 3)), color = "white") +
+  scale_fill_gradient("PropVaccinated", low = "lightgreen", high = "darkgreen") +
+  theme_void()
+  
+```
+
+Andmetabelite ühendamisel peab olema ettevaatlik, et meie read ei paljuneks. Kui sama maakonna kohta on mitu andmepunkti, siis maakondade tabeli ridu paljundatakse nii palju, et ridade arv klapiks teise andmestikuga.
+
+```{r}
+maakond %>% 
+  left_join(vaktsiin %>% rename(MNIMI = County)) %>% 
+  ggplot() +
+   geom_sf(aes(fill = TotalCount))
+
+
+```
+
+#### Ülesanne
+
+-   Joonista värvitud kaart graafik grupi "üle 70" (M +N), vaktsineeritute protsendi kohta.
+
+```{r}
+
+
+v2 = vaktsiin %>% 
+  filter(AgeGroup %in% c("70-79", "80+")) %>%
+  group_by(County) %>% 
+  summarize(
+    TotalCount = sum(TotalCount),
+    TotalPopulation = sum(Population),
+    Prop = TotalCount / TotalPopulation
+  ) 
+
+vm2 = maakond %>% 
+  left_join(v2 %>% rename(MNIMI = County))
+
+
+
+vm2 %>%
+  ggplot() + 
+  geom_sf(aes(fill = Prop)) +
+  geom_sf_text(aes(label = sprintf("%.0f%%", Prop * 100)), color = "white") +
+  scale_fill_gradient("Percentage") +
+  theme_void()
+
+
+```
+
+## Geograafiliste andmete leidmine
+
+### Maaameti Geoportaal
+
+Eesti kohta on palju avaandmeid saadaval Maaameti Geoportaalis. Vektorkujul andmetele viidatakse, kui SHP formaadis andmetele. Vaatame näiteks lehele <https://geoportaal.maaamet.ee/est/Ruumiandmed/Eesti-topograafia-andmekogu/Laadi-ETAK-andmed-alla-p609.html>
+
+Ja laeme sealt alla SHP faili tehnovõrkude kohta käsuga `st_read()`.
+
+```{r}
+tehno = st_read("ETAK_Eesti_SHP_tehnovorgud/E_601_elektriliin_j.shp")
+
+tehno
+
+tehno %>% 
+  ggplot() +
+    geom_sf() +
+  theme_void()
+```
+
+### Natural Earth
+
+Kui me tahame joonistada suuremaid kaarte kui Eesti kohta, näiteks maailmajao või maailma tasemel, siis on heaks allikaks Natural Earth andmebaas, kus on maailma riikide kohta käiv statistika ja nende kujufailid mugavalt kokku pandud. R-s saab sinna ligi paketiga `rnaturalearth` ning selle funktsiooniga `ne_countires`.
+
+```{r}
+library(rnaturalearth)
+
+countries = ne_countries(returnclass = "sf")
+
+countries
+
+ggplot(countries) +
+  geom_sf(aes(fill = income_grp))
+
+countries %>% 
+  filter(continent == "Africa") %>%
+  ggplot() +
+    geom_sf(aes(fill = income_grp))
+```
+
+Sealt saab ka täpsemat administratiivse alamjaotuse infot käsuga `ne_states`, millele peab andma argumendiks ette riigi. Eesti kohta on see andmestik natuke väikese resolutsiooniga, kuid suuremate riikide jaoks on väga hea.
+
+```{r}
+ne_states(country = "Estonia", returnclass = "sf")
+
+ne_states(country = "Estonia", returnclass = "sf") %>% 
+  ggplot() +
+    geom_sf()
+
+ne_states(country = "United Kingdom", returnclass = "sf") %>% 
+  ggplot() +
+    geom_sf()
+```
+
+### Open Street Maps
+
+Open Street Maps (OSM) on avatud vaste Google Mapsile ning sisaldab kõikvõimalikku kaardimaterjali. Inimesed üle maailma täiendavad seda pidevalt, nii et tegu on pidevas arengus oleva andmebaasiga. Infot on seal kaugelt rohkem kui on mõistlik korraga oma arvutisse laadida, seetõttu tuleb OSM andmete kasutamiseks teha päringuid OSM API-le mis saadab täpselt vajalikud andmed. OSM API väljakutsumine ja sealt saabuvate andmete õigesse formaati teisendamine on implementeeritud paketis `osmdata`. Sellega töötamise süsteem on järgmine.
+
+-   Esiteks tuleb defineerida ümbritsev kast (*i.k bounding box*) neile andmetele, mida tahame alla laadida. Seda saab teha paketi `osmdata` käsuga `getbb`, mille argumendiks tuleb panna meid huvitav kohanimi mingis formaadis. Näiteks "Tartu", "Raplamaa", "Haabersti".
+
+    ```{r}
+    # Jooksuta järgnevat ainult kui saad SSL certificate errorit
+
+    getbb("Narva")
+    ```
+
+-   Teiseks tuleb käsus `add_osm_feature` defineerida mis infot soovitakse saada. Kõikidest tabelitest saab ülevaate funktsiooniga available_features ja konkreetse tabeli alamajotustest available_tags
+
+    ```{r}
+    available_features() %>% tail()
+
+    available_tags("water")
+    ```
+
+    -   Mõned kasulikumad tabelid on
+
+        -   "highway" - kõik teed ja sillad
+
+        -   "boundary" - piirid (tag "administrative" annab ametlikud piirid
+
+        -   "building" - kõik hooned
+
+        -   "water" - kõik siseveekogud: jõed, järved, tiigid
+
+-   Kolmandaks tuleb kõik info alla laadida. Selleks on käsud `osmdata_sf() %>% unname_osmdata_sf()`. See protsess võib aega võtta ja ei pruugi iga kord õnnestuda. Siis proovida uuesti.
+
+-   Lõpuks saame andmestiku, mis on list erinevatest `sf` formaadis tabelitest vastavalt objeltitüübile. Selle listi elemendid on
+
+    -   `osm_points`
+
+    -   `osm_lines`
+
+    -   `osm_polygons`
+
+    -   `osm_multipoints`
+
+    -   `osm_multilines`
+
+    -   `osm_multipolygons`
+
+Teeme läbi ühe näite
+
+```{r}
+teed = opq(getbb("Tartu kesklinn")) %>% 
+  add_osm_feature(key = "highway") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf()
+
+teed$osm_lines
+```
+
+Saadavates andmetes on palju müra kuna on arvestatud igasuguste võimalike annotatsioonidega (seega on tabel lai) ja on kokku pandud palju erineva klassiga teid. Seetõttu tasub andmeid enne joonistamist filtreerida. Hea ülevaate erinevatest tee tüüpidest saab <https://wiki.openstreetmap.org/wiki/Key:highway>.
+
+```{r}
+teed$osm_lines %>% 
+  filter(!(highway %in% c("pedestrian", "path", "cycleway", "service", "footway"))) %>% 
+  ggplot() +
+   geom_sf()
+```
+
+Sarnaselt saab alla laadida administratiivsed üksused. Need aga tulevad mitmes tasandis (riik, osariik, maakond, vald, küla, ...) . Mis on antud tunnusega `admin_level`. Eesti puhul on `admin_level` jaotunud umbes järgmiselt.
+
+-   2 - riik
+
+-   6 - maakond
+
+-   7 - vald
+
+-   8 - linn
+
+-   9 - külad, linnaosad
+
+-   10 - asumid
+
+```{r}
+piirid = opq(getbb("Tallinn")) %>% 
+  add_osm_feature(key = "boundary", value = "administrative") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf()
+
+piirid$osm_multipolygons %>% 
+  filter(admin_level == 8) %>% 
+  ggplot() +
+    geom_sf()
+
+piirid$osm_multipolygons %>% 
+  filter(admin_level == 9) %>% 
+  ggplot() +
+    geom_sf()
+
+piirid$osm_multipolygons %>% 
+  filter(admin_level == 10) %>% 
+  ggplot() +
+    geom_sf()
+```
+
+Tõmbame all ka veekogud ja joonistame need kaardile. Kuna veekogud tulevad nii joonte, polügonide kui multipolügonidena, peame neid joonistama ka mitmes kihis.
+
+```{r}
+
+vesi = opq(getbb("Tartu kesklinn")) %>% 
+  add_osm_feature(key = "water") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf()
+
+ggplot() +
+  geom_sf(color = "lightblue", data = vesi$osm_lines) +
+  geom_sf(fill = "lightblue", data = vesi$osm_polygons) +
+  geom_sf(fill = "lightblue", data = vesi$osm_multipolygons)
+```
+
+Nagu näha on tihti probleemiks, et objektid ulatuvad kaugele algest ümbritsevast kastist välja seetõttu võib seda ümbritseva kasti koordinaadid anda ette ka funktsioonidele `xlim` ja `ylim`.
+
+```{r}
+bb = getbb("Tartu kesklinn")
+ggplot() +
+  geom_sf(color = "lightblue", data = vesi$osm_lines) +
+  geom_sf(fill = "lightblue", data = vesi$osm_polygons) +
+  geom_sf(fill = "lightblue", data = vesi$osm_multipolygons) +
+  geom_sf(data = teed$osm_lines) +
+  xlim(bb[1, ]) +
+  ylim(bb[2, ]) 
+```
+
+### Ülesanne
+
+-   Joonista Viljandi kaart, kus on peal hooned, teed (teist värvi kui hooned) ja linna piir (paksemana, kui muud jooned). Kõik andmed tõmba OSM-st. Kui saad kiirelt valmis proovi erinevaid võimalusi kaarti ilusamaks teha.
+
+```{r}
+
+bb = getbb("Viljandi") 
+
+piirid = opq(bb) %>%
+  add_osm_feature(key = "boundary", value = "administrative") %>%
+  osmdata_sf() %>% 
+  unname_osmdata_sf()
+  
+vesi = opq(getbb("Viljandi maakond")) %>% 
+  add_osm_feature(key = "water") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf()
+
+teed = opq(bb) %>% 
+  add_osm_feature(key = "highway") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf()
+
+hooned = opq(bb) %>%
+  add_osm_feature(key = "building") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf()
+
+```
+
+```{r}
+
+
+viljandi_piir = piirid$osm_multipolygons %>%
+  filter(admin_level == 7) %>%
+  filter(name == "Viljandi linn")
+
+```
+
+```{r}
+ggplot(viljandi_piir) +
+  geom_sf(fill = NA, size = 1.2, color = "darkred") +
+  geom_sf(fill = "lightblue", data = vesi$osm_polygons) +
+  geom_sf(fill = "lightblue", data = vesi$osm_multipolygons) +
+  geom_sf(data = hooned$osm_multipolygons, color = "blue") +
+  geom_sf(data = hooned$osm_polygons, color = "blue") +
+  geom_sf(data = teed$osm_lines) +
+  xlim(bb[1, ]) +
+  ylim(bb[2, ]) +
+  theme_void()
+   
+ggsave("viljanid.pdf", width = 15, height = 15)
+```

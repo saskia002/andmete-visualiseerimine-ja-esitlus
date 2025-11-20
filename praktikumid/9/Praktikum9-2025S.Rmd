@@ -12,7 +12,7 @@ Kellele see raamat ja temas olevate graafikute taasloomine R-s sügavamat huvi p
 Enne alustamist loeme sisse täna vajaminevad paketid ja andmestikud.
 
 ```{r}
-#install.packages("lemon", "ggrepel")
+install.packages("lemon", "ggrepel")
 
 library(tidyverse)
 library(lemon)
@@ -254,27 +254,6 @@ tickets %>%
 
 ![](images/Screenshot%202021-04-17%20at%2022.40.00.png)
 
-```{r}
-tickets 
-```
-
-```{r}
-tickets %>% 
-  filter(ticket_type == "Processed") %>% 
-  mutate(month = fct_reorder(month, tickets)) %>% 
-  ggplot(aes(x = tickets, y = month)) + 
-    geom_bar(stat = "identity", fill = ORANGE2) + 
-    scale_x_continuous(position = "top", expand = expansion(mult = c(0, 0.05))) +
-  coord_capped_cart(top = 'both') +
-  theme_swd() +
-  theme(
-    axis.title.y = element_blank(),
-    axis.line.y = element_blank(),
-    axis.text.y = element_text(size = 12),
-    axis.text.x = element_text(size = 10)
-  )
-```
-
 ## Värvidega elementide esile toomine
 
 Värvi kasutamine on SWD-s oluline teema. See raamat rõhutab just värvi rolli olulise info esile toomisel. Sisuliselt soovitatakse skeemi kus enamus andmeid on kujutatud suhteliselt neutraalse halli tooniga ning välja toodav element on siis värvilisem, kas sinine või näiteks punane. Nii on kohe selge millisele elemendile me oma tähelepanu juhtima peame. Selline loogika läheb aga vastuollu standardsete `ggplot2` värvisekeemidega ning taolise efekti saavutamiseks peame rohkem tööd tegema.
@@ -358,30 +337,6 @@ Täienda eelmise ülesande koodi nii, et tulemus näeks välja järgnev.
 
 ![](images/Screenshot%202021-04-18%20at%2023.25.41.png)
 
-```{r}
-tickets %>% 
-  filter(ticket_type == "Processed") %>% 
-  mutate(month = fct_reorder(month, tickets)) %>% 
-  mutate(
-    fill_color = case_when(
-      month %in% c("Mar", "Feb", "May") ~ BLUE2,
-      TRUE ~ GRAY9
-    )
-  ) %>% 
-  ggplot(aes(x = tickets, y = month, fill = fill_color)) + 
-    geom_bar(stat = "identity") + 
-    scale_x_continuous(position = "top", expand = expansion(mult = c(0, 0.05))) +
-  coord_capped_cart(top = 'both') +
-  scale_fill_identity() + 
-  theme_swd() +
-  theme(
-    axis.title.y = element_blank(),
-    axis.line.y = element_blank(),
-    axis.text.y = element_text(size = 12),
-    axis.text.x = element_text(size = 10)
-  )
-```
-
 ## Tekstide lisamine graafikule
 
 Tekstide strateegilise kasutamisega saab graafikul saavutada päris palju. Saab elimineerida legendi annoteerides elemente, näiteks jooni, otse graafikul. Saab tuua esile olulisi väärtuseid. Saab lisada kirjeldusi graafiku võtmekohtdasesse.
@@ -400,7 +355,7 @@ labels = value %>%
 ggplot(value, aes(x = year, y = value, group = product)) +
     geom_line(color = GRAY9) +
     geom_text(aes(x = year, y = value, label = product), color = GRAY6, hjust = 0, nudge_x = 0.1, data = labels) +
-     #geom_text_repel(aes(x = year, y = value, label = product), color = GRAY6, hjust = 0, nudge_x = 0.1, direction = "y", data = labels) +
+    # geom_text_repel(aes(x = year, y = value, label = product), color = GRAY6, hjust = 0, nudge_x = 0.1, direction = "y", data = labels) +
     ylim(c(0, 450)) +
     xlim(c(2008, 2016)) +
     ylab("Average price") +
@@ -419,7 +374,7 @@ labels = value %>%
 ggplot(value, aes(x = year, y = value, group = product)) +
     geom_line(color = GRAY9) +
     geom_text(aes(x = year, y = value, label = product_letter), color = GRAY6, hjust = 1, vjust = 1, nudge_x = -0.05, data = labels) +
-    #geom_text_repel(aes(x = year, y = value, label = product), color = GRAY6, hjust = 0, nudge_x = 0.1, direction = "y", data = labels) +
+    # geom_text_repel(aes(x = year, y = value, label = product), color = GRAY6, hjust = 0, nudge_x = 0.1, direction = "y", data = labels) +
     ylim(c(0, 450)) +
     xlim(c(2007.5, 2014)) +
     ylab("Average price") +
@@ -436,8 +391,7 @@ Oluliste väärtuste lisamist oleme käsitlenud ka varasemates praktikumides, n�
 ggplot(value, aes(x = year, y = value, group = product)) +
     geom_line(color = GRAY9) +
     geom_point(color = GRAY9, data = ~ .x %>% filter(product == "Product A")) +
-    #geom_text(aes(label = value), color = GRAY9, vjust = 0, nudge_y = 15, data = ~ .x %>% filter(product == "Product A")) +
-  geom_text(aes(label = value), color = GRAY9, vjust = 0, nudge_y = 15, data = function(.x) { .x %>% filter(product == "Product A")}) +
+    geom_text(aes(label = value), color = GRAY9, vjust = 0, nudge_y = 15, data = ~ .x %>% filter(product == "Product A")) +
     ylim(c(0, 450)) +
     ylab("Average price") +
     xlab("Year") + 
@@ -450,36 +404,6 @@ ggplot(value, aes(x = year, y = value, group = product)) +
 Täiendage eelmistes ülesannetes alustatud pilti nii, et see näeks välja järgnev.
 
 ![](images/Screenshot%202021-04-18%20at%2023.32.01.png)
-
-```{r}
-
-
-
-tickets %>% 
-  filter(ticket_type == "Processed") %>% 
-  mutate(month = fct_reorder(month, tickets)) %>% 
-  mutate(
-    fill_color = case_when(
-      month %in% c("Mar", "Feb", "May") ~ BLUE2,
-      TRUE ~ GRAY9
-    )
-  ) %>% 
-  ggplot(aes(x = tickets, y = month, fill = fill_color)) + 
-    geom_bar(stat = "identity") + 
-    scale_x_continuous(position = "top", expand = expansion(mult = c(0, 0.05))) +
-  coord_capped_cart(top = 'both') +
-  scale_fill_identity() + 
-  geom_text(aes(label = max(tickets)), color = "white", hjust = 1.25, data = ~ .x %>% filter(month %in% c("Mar", "Feb", "May"))) +
-  theme_swd() +
-  theme(
-    axis.title.y = element_blank(),
-    axis.line.y = element_blank(),
-    axis.text.y = element_text(size = 12),
-    axis.text.x = element_text(size = 10)
-  )
-```
-
-![](images/clipboard-3412185537.png)
 
 ## *Storytelling with data* sammud
 
@@ -582,63 +506,3 @@ tickets %>%
 ## Koduülesanne
 
 Andmestikus `birth_year.RData` on aasta päevade kaupa toodud ära keskmine sündide arv USAs. Proovige ÜHE graafikuga näidata selles andmestikus midagi huvitavat. Vormistage graafik nii, et see iseseisvalt annaks edasi sõnumi. Järgige selle töö käigus SWD protsessi ja lisaks pildile kirjutage sammude 2-5 kohta mida te iga sammu puhul konkreetselt tegite.
-
-```{r}
-source("theme.r")
-```
-
-```{r}
-
-load("births_year.RData", verbose = T)
-
-births_year
-```
-
-monthly_avg
-
-```{r}
-
-  
-monthly_avg <- births_year %>%
-  group_by(Month) %>%
-  summarise(AverageBirthsPerMonth = mean(AverageBirths, na.rm = TRUE)) %>%
-  mutate(MonthName = factor(month.abb[Month], levels = month.abb))
-
-
-  
-monthly_avg
-
-```
-
-```{r}
-
-max_months = c("Jul", "Aug", "Sep")
-
-monthly_avg %>% 
-  mutate(MonthName = factor(MonthName, levels = rev(month.abb))) %>%
-  mutate(
-    fill_color = case_when(
-      MonthName %in% max_months ~ "plum3",
-      TRUE ~ GRAY9
-    )
-  ) %>% 
-  
-  ggplot(aes(y = MonthName, x = AverageBirthsPerMonth, fill = fill_color)) +
-    geom_bar(stat = "identity") +
-    scale_fill_identity() + 
-    ylab("") +
-    xlab("Average Births") +
-    coord_capped_cart(top = "both", right = "both") +
-    scale_x_continuous(position = "top", expand = expansion(mult = c(0, 0.05))) +
-   geom_text(aes(label = trunc(AverageBirthsPerMonth)), color = "white", hjust = 1.25, data = ~ .x %>% filter(MonthName %in% max_months)) +
-    theme_swd() +
-    theme(
-          axis.line.y = element_blank(),
-          #axis.title.y = element_blank(),
-          axis.text.y = element_text(size = 11),
-          axis.text.x = element_text(size = 11),
-          axis.title.x = element_text(size = 12, face = "bold"),
-          axis.title.x.top = element_text(margin = margin(b = 10))
-    ) 
-    
-```
