@@ -1,0 +1,983 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+## Sissejuhatus
+
+Tänases praktikumis vaatame kaardiobjektidega sooritatavaid operatsioone ning kuidas teha interaktiivseid kaarte `leaflet` paketiga. Kaardiandmed tõmbame OpenStreetMaps-st. Loeme sisse vajalikud paketid ja ühe lisafunktsiooni, mis teeb meie elu OSM andmete kasutamisel lihtsamaks.
+
+```{r}
+library(tidyverse)
+library(sf)
+library(osmdata)
+library(leaflet)
+library(ggrepel)
+# install.packages("devtools")
+# devtools::install_github("yutannihilation/ggsflabel")
+library(ggsflabel)
+
+clean_osm_data = function(x, retain_named = F){
+  for(i in names(x)){
+    if(str_detect(i, "osm") & !is.null(x[[i]])){
+      if(nrow(x[[i]]) == 0) { next} 
+      if(retain_named){
+        x[[i]] = x[[i]] %>% 
+          filter(!is.na(name))
+      }
+      
+      # res = x[[i]] %>% keep(~ mean(is.na(na_if(.x, ""))) < 0.2) 
+      res = x[[i]] %>% keep(function(.x) if(is.list(.x)){return(T)} else {mean(is.na(na_if(.x, ""))) < 0.2} ) 
+      if(("name" %in% colnames(x[[i]])) & (!("name" %in% colnames(res)))){
+        name = x[[i]] %>% as.data.frame() %>% select(name) 
+        res = res %>% bind_cols(name)
+      }
+      x[[i]] = res
+    }
+  }
+  
+  return(x)
+}
+```
+
+## Tehted geograafiliste andmetega
+
+Esmalt tõmbame alla mõned andmed OSM-st millega me hakkame tegutsema. Plaanis on joonistada kaart Lääne-Virumaa kohta. Tõmbame alla andmed administratiivsete piiride ja teede kohta. Eraldame andmetest ka olulisemad osad välja.
+
+```{r}
+lv_bb = getbb("Lääne-Virumaa")
+
+# Tõmbame andmed alla
+piirid = opq(lv_bb, timeout = 100) %>% 
+  add_osm_feature(key = "boundary", value = "administrative") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf() %>% 
+  clean_osm_data()
+
+lv_teed = opq(lv_bb) %>% 
+  add_osm_feature(key = "highway") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf() %>% 
+  clean_osm_data()
+
+save(piirid, lv_teed, file = "lv_andmed.RData")
+
+
+# Tõmba alla https://drive.google.com/file/d/1-gwuMrQmHaJPRQ-oobNwfS71n_b8aeOm/view?usp=sharing
+```
+
+```{r}
+# Eraldame alamaandmestikud
+lv_piir = piirid$osm_multipolygons %>% 
+  filter(admin_level == 6) %>% 
+  filter(name == "Lääne-Viru maakond")
+
+lv_vallad = piirid$osm_multipolygons %>% 
+  filter(admin_level == 7) 
+
+lv_linnad = piirid$osm_multipolygons %>% 
+  filter(admin_level == 9) %>%  
+  filter(str_detect(name, "linn"))
+
+lv_alevikud = piirid$osm_multipolygons %>% 
+  filter(admin_level == 9) %>%  
+  filter(str_detect(name, "alevik")) 
+
+lv_teed_suured = lv_teed$osm_lines %>% 
+  filter(highway %in% c("trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link"))
+```
+
+### Alamhulkade võtmine geograafiliste elementidega
+
+Nagu me nägime, saime me tõesti objektid Lääne-Virumaa teede ja asulate kohta. Kuid saime ka portsu informatsiooni objektide kohta, mis tegelikult jäävad Lääne-Virumaa piiridest välja. Kuna meie eesmärk on joonistada kaart siiski ainult selles maakonnas asuvate objektide kohta, siis tuleks ülejäänud elemendid välja visata. Tihti saab selleks kasutada erinevaid tabeli tunnuseid, kuid üldisem võimalus on kasutada geomeetrilisi objekt endeid, et filtreerimist teostada. Paketis `sf` on selleks terve ports käske, näiteks: `st_within`, `st_contains`, `st_intersects`, `st_touches`, `st_overlaps`, jne ...
+
+```{r}
+lv_linnad
+
+st_within(lv_linnad, lv_piir, sparse = F)
+
+lv_linnad = lv_linnad %>% 
+  filter(st_within(x = ., y = lv_piir, sparse = F))
+
+lv_alevikud = lv_alevikud %>% 
+  filter(st_within(x = ., y = lv_piir, sparse = F))
+
+lv_vallad = lv_vallad %>% 
+  filter(st_within(x = ., y = lv_piir, sparse = F))
+
+lv_teed_suured = lv_teed_suured %>% 
+  filter(st_intersects(x = ., y = lv_piir, sparse = F))
+```
+
+Joonistame nüüd kõik elemendid välja
+
+```{r}
+ggplot() +
+  geom_sf(data = lv_piir) +
+  geom_sf(data = lv_vallad) +
+  geom_sf(data = lv_teed_suured) +
+  geom_sf(data = lv_alevikud) +
+  geom_sf(data = lv_linnad) 
+```
+
+Näeme, et oleme tõesti suutnud eraldada suhteliselt edukalt kõik Lääne-Virumaa geograafilised elemendid. Ainult teed lähevad mõnel juhul üle piiri. Selleks et üle jääv jupp ära lõigata kasutame funktsiooni `st_intesection`. Kui enne me filtreerisime ridu, siis see funktsioon modifitseerib vastavat geomeetrilist esitust. Kui me rakendame seda teedele, siis joonte arv jääb samaks kuid me lõikame mõnel joonel lihtsalt jupi ära.
+
+```{r}
+lv_teed_suured = lv_teed_suured %>% 
+  st_intersection(y = lv_piir)
+
+ggplot() +
+  geom_sf(data = lv_piir) +
+  geom_sf(data = lv_vallad) +
+  geom_sf(data = lv_teed_suured) +
+  geom_sf(data = lv_alevikud) +
+  geom_sf(data = lv_linnad) 
+```
+
+Järgmisena näeme, et Lääne-Virumaa maakonna piir sisaldab ka merepiiri. Oma tulevasele kaardile sooviksime siiski panna ainult maapiiri. Valdade tasemel siiski merepiiri pole, seega saame kasutada valdade piire, et tekitada tekitada meie vajadustele sobivam maakonna piir. Me võime võtta valdade kujudest ühendi käsuga `st_union`.
+
+```{r}
+ggplot() +
+  geom_sf(data = lv_piir)
+
+lv_vallad %>% 
+  st_union() %>% 
+  ggplot() +
+    geom_sf()
+
+lv_piir = lv_vallad %>% 
+  st_union()
+```
+
+Tasub vaadata `st_union` abilehti, et leida veel hulgatehteid.
+
+### Lihtsustamine
+
+Ülalolevate piltide joonistamine võttis üsna kaua aega, sest alla laetud geomeetrilised esitused on päris detailsed. Nii pisikeses aknas joonistamiseks võib detailsust vähendada märgatavalt. Selleks kasutame funktsiooni `st_simplify`, millele tuleb parameetriks anda ka `dTolerance` mis ütleb kui suur võib lihtsustamise viga olla.
+
+```{r}
+lv_piir %>% 
+  ggplot() + 
+    geom_sf()
+
+lv_piir %>% 
+  st_simplify(dTolerance = 100) %>% 
+  ggplot() + 
+    geom_sf()
+
+lv_piir %>% 
+  object.size()
+
+lv_piir %>% 
+  st_simplify(dTolerance = 100) %>% 
+  object.size()
+
+```
+
+Rakendame seda nüüd kõigile oma kujunditele.
+
+```{r}
+lv_piir = lv_piir %>% 
+  st_simplify(dTolerance = 100)
+
+lv_vallad = lv_vallad %>% 
+  st_simplify(dTolerance = 100)
+
+lv_alevikud = lv_alevikud %>% 
+  st_simplify(dTolerance = 100)
+
+lv_linnad = lv_linnad %>% 
+  st_simplify(dTolerance = 1100)
+
+lv_teed_suured = lv_teed_suured %>% 
+  st_simplify(dTolerance = 100)
+
+ggplot() +
+  geom_sf(data = lv_piir) +
+  geom_sf(data = lv_vallad) +
+  geom_sf(data = lv_teed_suured) +
+  geom_sf(fill = "gold", data = lv_alevikud) +
+  geom_sf(fill = "darkred", data = lv_linnad) 
+```
+
+### Keskpunkti leidmine
+
+Mõned alevikud on antud pildi peal isegi suuremad pindalalt kui Rakvere või Tapa ning kipuvad pilti domineerima. Võibolla oleks neid parem esitada punktidena. Selleks võime leida nende kujundite keskpunktid käsuga `st_centroid`.
+
+```{r}
+lv_alevikud_p = lv_alevikud %>% 
+  st_centroid()
+
+ggplot() +
+  geom_sf(data = lv_piir) +
+  geom_sf(data = lv_vallad) +
+  geom_sf(data = lv_teed_suured) +
+  geom_sf(color = "darkred", data = lv_alevikud_p) +
+  geom_sf(fill = "darkred", data = lv_linnad) 
+```
+
+### Kauguse järgi filtreerimine
+
+Mõnikord on kasulik andmeid filtreerida ka kauguse järgi teatava objektini. Näiteks antud soovime leida kõik alevikud mida võib pidada Rakvere eeslinnadeks ja näidata neid teise värviga. Defineerime eeslinna kui aleviku, mis asub Rakverest vähem kui 5 kilmeetri kaugusel. Me võime leida sellised linnad automaatselt käsuga `st_is_within_distance`.
+
+```{r}
+r_eeslinn = lv_alevikud_p %>% 
+  filter(
+    st_is_within_distance(
+      x = ., 
+      y = lv_linnad %>% 
+        filter(name == "Rakvere linn"), 
+      dist = 5000, 
+      sparse = F
+    )
+  ) 
+
+
+ggplot() +
+  geom_sf(data = lv_piir) +
+  geom_sf(data = lv_vallad) +
+  geom_sf(data = lv_teed_suured) +
+  geom_sf(color = "pink", data = lv_alevikud_p) +
+  geom_sf(color = "darkred", data = r_eeslinn) +
+  geom_sf(fill = "darkred", data = lv_linnad) 
+  
+```
+
+### Pindala
+
+Kujunditel saab arvutada ka pindala ja pikkust mida võib ära kasutada kui meil on näiteks infot väljastpoolt mida nende numbritega võrrelda. Näiteks põllumaa pindala erinevates valdades või liiklusõnnetuste arv konkreetsel teelõigul. Pindala ja pikkust saab arvutada vastavalt käskudega `st_area` ja `st_length`.
+
+```{r}
+lv_vallad = lv_vallad %>% 
+  mutate(Pindala = st_area(.) %>% as.numeric())
+
+lv_teed_suured = lv_teed_suured %>% 
+  mutate(Pikkus = st_length(.) %>% as.numeric())
+
+ggplot() +
+  geom_sf(data = lv_piir) +
+  geom_sf(aes(fill = Pindala), data = lv_vallad) +
+  geom_sf(data = lv_teed_suured) +
+  geom_sf(color = "pink", data = lv_alevikud_p) +
+  geom_sf(color = "darkred", data = r_eeslinn) +
+  geom_sf(fill = "darkred", data = lv_linnad) 
+
+ggplot() +
+  geom_sf(data = lv_piir) +
+  geom_sf(data = lv_vallad) +
+  geom_sf(aes(color = Pikkus), data = lv_teed_suured) +
+  geom_sf(color = "pink", data = lv_alevikud_p) +
+  geom_sf(color = "darkred", data = r_eeslinn) +
+  geom_sf(fill = "darkred", data = lv_linnad) 
+```
+
+### Lõplik kaart
+
+Paneme nüüd kõik need trikid kokku eelmisel korral õpitud oskustega ja teeme ilusama kaardi.
+
+```{r}
+ggplot() +
+  geom_sf(size = 1.5, data = lv_piir) +
+  geom_sf(fill = "#41ab5d", data = lv_vallad) +
+  geom_sf(color = "gold", data = lv_teed_suured) +
+  geom_sf(color = "#ffffcc", data = lv_alevikud_p) +
+  geom_sf_text_repel(aes(label = alt_name), size = 2, color = "#ffffcc", data = lv_alevikud_p) +
+  geom_sf(fill = "darkred", data = lv_linnad) +
+  geom_sf_text(aes(label = alt_name), color = "#edf8b1", size = 3, data = lv_linnad) +
+  theme_void()
+
+```
+
+### Koordinaatsüsteemid
+
+Kui me tõmbame andmeid erinevatest allikatest, siis on mõnikord ka koordinaatsüsteemid erinevad. Näiteks elektriliinide failis, mis me eelmine kord tõmbasime oli koordinaatsüsteemiks "Estonian Coordinate System of 1997 + EVRF2007 height" aga OSM-st tõmmatud andmetel on selleks "WGS 84". Et andmetega geograafilisi tehteid teha tuleks süsteemid ühtlustada. Seda saab teha käsukudega `st_crs` ja `st_transform`. Millest esimene ütleb, millise koordinaatsüsteemiga on tegu ja teine võimaldab andmestikul seda muuta.
+
+geom_sf(data = liinid)
+
+```{r}
+liinid = st_read("E_601_elektriliin_j.shp")
+
+liinid
+lv_piir
+
+st_crs(liinid)
+st_crs(lv_piir)
+
+liinid = liinid %>% 
+  st_intersection(y = lv_piir)
+
+liinid = liinid %>% 
+  st_transform(crs = st_crs(lv_piir))
+
+liinid = liinid %>% 
+  st_intersection(y = lv_piir)
+
+ggplot(liinid) +
+  geom_sf(data = lv_piir) +
+  geom_sf(data = liinid)
+```
+
+#### Ülesanded
+
+Tõmbame andmed Rakvere linna kohta.
+
+```{r}
+r_bb = getbb("Rakvere")
+
+hooned = opq(r_bb) %>% 
+  add_osm_feature(key = "building") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf() %>% 
+  clean_osm_data()
+
+asutused = opq(r_bb) %>% 
+  add_osm_feature(key = "amenity") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf() #%>% 
+  #clean_osm_data(retain_named = T)
+
+teed = opq(r_bb) %>% 
+  add_osm_feature(key = "highway") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf()%>% 
+  clean_osm_data()
+
+piirid = opq(r_bb) %>% 
+  add_osm_feature(key = "boundary", value = "administrative") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf() %>% 
+  clean_osm_data()
+
+# Tõmba alla https://drive.google.com/file/d/1Pkd9tmVkTWXcvRYkiaSC8bZcJuY54NtB/view?usp=sharing
+
+r_asutused = asutused$osm_points %>% bind_rows(st_centroid(asutused$osm_polygons))
+r_hooned = hooned$osm_polygons
+r_teed = teed$osm_lines %>% 
+  filter(!(highway %in% c("steps", "path", "footway", "cycleway", "service", "track", "pedestrian", "living_street")))
+r_piir = piirid$osm_multipolygons %>% 
+  filter(admin_level == 7) %>% 
+  filter(name == "Rakvere linn")
+r_bussijaam = r_asutused %>% 
+  filter(name == "Rakvere bussijaam")
+```
+
+-   Joonista Rakvere kaart kasutades andmestikke: r_asutused, r_hooned, r_teed, r_piir ja r_bussijaam. Seal võiks peal olla
+
+    -   kõik teed Rakvere piiride sees
+
+    -   kõik Rakvere piirides olevad majad
+
+    -   Rakvere piir
+
+    -   kõik kohvikud, sealhulgas bussijaamast 500 m kaugusele jäävad võiks olla nimega välja toodud
+
+-   Salvesta see pdf formaadis natuke suuremalt et näha detaile paremini.
+
+```{r}
+
+r_teed2 = r_teed %>%
+  st_intersection(y = r_piir)
+
+r_hooned2 = r_hooned %>%
+  filter(st_intersects(x = ., y = r_piir, sparse = FALSE))
+
+r_kohvikud = r_asutused %>%
+  filter(amenity == "cafe")
+
+r_kovikud500 = r_kohvikud %>%
+  filter(
+    st_is_within_distance(
+      x=.,
+      y=r_bussijaam,
+      dist=500,
+      sparse=F
+    )
+  )
+
+ggplot() +
+  geom_sf(color="gold", fill="gray20", linewidht=2, data=r_piir) +
+  geom_sf(color="purple", fill="purple", data=r_hooned2) +
+  geom_sf(color="white", data=r_teed2) +
+  geom_sf_text_repel(aes(label=name), color="pink", data=r_kovikud500) +
+  geom_sf(color="gold", data=r_bussijaam, size=3) +
+  geom_sf(coor=NA, color="gold", alpha=0.2, data=r_bussijaam %>% st_buffer(dist=500)) +
+  theme_void() +
+  theme(
+    plot.background = element_rect(fill="gray")
+  )
+```
+
+## Interaktiivsed kaardid
+
+Interaktiivseid kaarte saame teha paketiga `leaflet`. See pakendab lihtsalt samanimelise javascript teegi. Sisuliselt saab nii implementeerida Google maps tüüpi rakendusi, kus me saame kaardile sisse ja välja zoomida ning kaardile markereid ja kujundeid lisada.
+
+Sellised kaardid töötavad tõmmates vastavalt vajadusele alla kaardilehti vastava asukoha ja zoom tasemele. Esmast kaarti on üles seada väga lihtne, kasutades funktsioone `leaflet` kaardi loomiseks, `addTiles` kaardilehtede lisamiseks ja `setView` algse asukoha ja zoom taseme määramiseks.
+
+```{r}
+leaflet()  
+
+
+leaflet() %>% 
+  addTiles() 
+
+
+leaflet() %>% 
+  addTiles() %>% 
+  setView(lng = 25.5, lat = 58.5, zoom = 6)
+```
+
+Kasutada saab erinevaid aluskaarte valides neid käsuga addProviderTiles. Kõiki võimalike variante on võimalik vaadata lingil <http://leaflet-extras.github.io/leaflet-providers/preview/>.
+
+```{r}
+leaflet() %>% 
+  addProviderTiles(providers$Stadia.StamenToner) %>%
+  # addProviderTiles(providers$CartoDB.Positron) %>%
+  # addProviderTiles(providers$Esri.NatGeoWorldMap) %>%
+  setView(lng = 25.5, lat = 58.5, zoom = 6) 
+```
+
+### Elementide lisamine kaardile
+
+Leafleti eelis staatiliste piltide ees on, et sellele kaardile saab lisada interaktiivseid markereid. Markerid võivad olla suhteliselt suvalisel kujul, kuid väga hästi töötavad ka `sf` formaadis andmed. Markeri puhul saab defineerida, mis juhtub, kui sa hiirega markeri kohal oled (`label`) ja mida kirjutatakse avanevasse aknasse, kui sa sellele markeril klikid (`popup`). Mõelmal juhul võib lisada ka html koodi, et teksti vormindada.
+
+```{r}
+leaflet(lv_alevikud_p) %>% 
+  addTiles() %>% 
+  addMarkers(label = ~name, popup = ~name)
+
+leaflet(lv_alevikud_p) %>% 
+  addTiles() %>% 
+  addMarkers(label = ~alt_name, popup = ~ str_c("Alevik nimega <br>", "<b>", alt_name, "</b>"))
+```
+
+Markerite kuju võib muuta kasutades näiteks ümmargusi markereid käsuga addCircleMarkers.
+
+```{r}
+leaflet(lv_alevikud_p) %>% 
+  addTiles() %>% 
+  addCircleMarkers(label = ~name, popup = ~name)
+
+leaflet(lv_alevikud_p) %>% 
+  addTiles() %>% 
+  addCircleMarkers(label = ~name, popup = ~name, color = "red", radius = 5, fillOpacity = 1)
+```
+
+Saab näidata ka lihtsalt ringe, jooni ja polügone.
+
+```{r}
+leaflet(lv_alevikud_p) %>% 
+  addTiles() %>% 
+  addCircles(label = ~name, popup = ~name, radius = 3000)
+
+leaflet(lv_teed_suured %>% filter(Pikkus > 0)) %>% 
+  addTiles() %>% 
+  addPolylines(label = ~name, popup = ~name)
+
+
+leaflet(lv_vallad) %>% 
+  addTiles() %>% 
+  addPolygons(label = ~name, popup = ~name, fillColor = "green")
+
+```
+
+Kujundeid saab ka värvida andmete põhjal, kuid see töötab natuke teisiti kui ggplotis. Sisuliselt tuleb ette anda skaleeritud värvide vektor, kuid õnneks on olemas eraldi funktsioonid paleti tekitamsieks: colorNumeric, colorBin, colorQuantile ja colorFactor. Lisada saab ka legendi käsuga addLegend.
+
+```{r}
+pal = colorFactor(c("red", "green", "blue"), lv_vallad$`EHAK:code`)
+
+leaflet(lv_vallad) %>% 
+  addTiles() %>% 
+  addPolygons(label = ~ name, fillColor = ~ pal(lv_vallad$`EHAK:code`), fillOpacity = 1, opacity = 1, weight = 1)
+
+pal = colorFactor("YlGnBu", lv_vallad$`EHAK:code`)
+
+leaflet(lv_vallad) %>% 
+  addTiles() %>% 
+  addPolygons(label = ~ name, fillColor = ~ pal(lv_vallad$`EHAK:code`), fillOpacity = 1, opacity = 1, weight = 1)
+
+
+pal = colorFactor("viridis", lv_vallad$`EHAK:code`)
+
+leaflet(lv_vallad) %>% 
+  #addTiles() %>% 
+  addPolygons(label = ~ name, fillColor = ~ pal(lv_vallad$`EHAK:code`), fillOpacity = 1, opacity = 1, weight = 1) %>% 
+  addLegend("bottomright", pal = pal, values = ~lv_vallad$`EHAK:code`,
+    title = "EHAK",
+    opacity = 1
+  )
+
+```
+
+Me saame kontrollida kuidas muutuvad kaardi elemendid kui me neile peale läheme parameetriga highlight.
+
+```{r}
+pal = colorFactor("YlGnBu", lv_vallad$`EHAK:code`)
+
+leaflet(lv_vallad) %>% 
+  addTiles() %>% 
+  addPolygons(
+    label = ~ name, 
+    fillColor = ~ pal(lv_vallad$`EHAK:code`), 
+    fillOpacity = 1, 
+    opacity = 1, 
+    weight = 1, 
+    highlight = highlightOptions(
+      weight = 5,
+      color = "white",
+      bringToFront = TRUE
+    )
+  )
+```
+
+#### Ülesanne
+
+-   Tee interaktiivne kaart Rakvere linna asutustega. Erinevat tüüpi asutused võiks olla erinevat värvi markeriga ning asutuse tüüpide kohta võiks olla legend. Peale klikkides võiks olla näha asutuse nimi.
+
+## Koduülesanne (staatiline kaart)
+
+Tehke A4 (mõõdud 8.3 x 11.7) peal väljaprinditav kaart Tartu linnast. Kus on välja toodud huvitavaid andmeid Tartu avaandmete portaalist (<https://geohub.tartulv.ee/pages/avaandmed>). Sealt saab alla laadid Shapefile, mis tuleks ka kodutööga ka kaasa panna.
+
+Mõned asjad võiks kindlasti olla näidatud ka nimega. Kaart võiks olla visuaalselt puhas ja kena välja näha, nii et nimed oleks loetavad ja ei kattu, ei ole mingeid suvalisi teejuppe mis kuhugi ei vii. Kindlasti võiks peal olla ka jõgi. Hindamisel vaatan ka kas on kasutatud geograafilisi teisendusi ning kas kaart moodustab sisulise terviku.
+
+```{r}
+library(tidyverse)
+library(sf)
+library(osmdata)
+library(leaflet)
+library(ggrepel)
+# install.packages("devtools")
+# devtools::install_github("yutannihilation/ggsflabel")
+library(ggsflabel)
+
+clean_osm_data = function(x, retain_named = F){
+  for(i in names(x)){
+    if(str_detect(i, "osm") & !is.null(x[[i]])){
+      if(nrow(x[[i]]) == 0) { next} 
+      if(retain_named){
+        x[[i]] = x[[i]] %>% 
+          filter(!is.na(name))
+      }
+      
+      # res = x[[i]] %>% keep(~ mean(is.na(na_if(.x, ""))) < 0.2) 
+      res = x[[i]] %>% keep(function(.x) if(is.list(.x)){return(T)} else {mean(is.na(na_if(.x, ""))) < 0.2} ) 
+      if(("name" %in% colnames(x[[i]])) & (!("name" %in% colnames(res)))){
+        name = x[[i]] %>% as.data.frame() %>% select(name) 
+        res = res %>% bind_cols(name)
+      }
+      x[[i]] = res
+    }
+  }
+  
+  return(x)
+}
+```
+
+```{r}
+
+tartu_bb = getbb("Tartu")
+
+hooned = opq(tartu_bb) %>% 
+  add_osm_feature(key = "building") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf() %>% 
+  clean_osm_data()
+
+asutused = opq(tartu_bb) %>% 
+  add_osm_feature(key = "amenity") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf() #%>% 
+  #clean_osm_data(retain_named = T)
+
+teed = opq(tartu_bb) %>% 
+  add_osm_feature(key = "highway") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf()%>% 
+  clean_osm_data()
+
+piirid = opq(tartu_bb) %>% 
+  add_osm_feature(key = "boundary", value = "administrative") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf() %>% 
+  clean_osm_data()
+
+emajõgi = opq(tartu_bb) %>%
+  add_osm_feature(key = "waterway", value = "river") %>%
+  osmdata_sf() %>% 
+  unname_osmdata_sf()%>% 
+  clean_osm_data()
+```
+
+```{r}
+
+tartu_asutused = asutused$osm_points %>% bind_rows(st_centroid(asutused$osm_polygons))
+
+tartu_hooned = hooned$osm_polygons
+
+tartu_teed = teed$osm_lines %>% 
+  filter(!(highway %in% c("steps", "path", "footway", "cycleway", "service", "track", "pedestrian", "living_street")))
+
+#tartu_piir = piirid$osm_multipolygons %>% 
+    #(admin_level == 7, name == "Tartu linn")
+
+tartu_piir = piirid$osm_multipolygons %>% 
+  filter(admin_level == 7, name == "Tartu linn") %>% 
+  st_union() %>% 
+  st_as_sf()
+
+tartu_teed2 = tartu_teed %>%
+  st_intersection(y = tartu_piir)
+
+tartu_hooned2 = tartu_hooned %>%
+  #st_intersection(y = tartu_piir)
+  filter(st_intersects(x = ., y = tartu_piir, sparse = FALSE))
+
+```
+
+```{r}
+
+parkimine = st_read("./data/Parkimisala.shp")
+
+parkimine = parkimine %>% 
+  st_transform(crs = st_crs(tartu_piir))
+
+parkimine = parkimine %>%
+  mutate(Piirkond = factor(Piirkond))
+
+tartu_emajõgi = emajõgi$osm_multilines %>% 
+  st_transform(crs = st_crs(tartu_piir))
+
+teed_bbox = st_bbox(tartu_teed2)
+
+teed_bbox_poly = st_as_sfc(teed_bbox) %>%
+  st_set_crs(st_crs(tartu_teed2))
+
+
+tartu_emajõgi_clip = tartu_emajõgi %>%
+  st_intersection(teed_bbox_poly)
+```
+
+```{r}
+ggplot() +
+  geom_sf(color="gray90", fill="gray90", data=tartu_hooned2) +
+  geom_sf(color="gray30", data=tartu_teed2) +
+  geom_sf(data=parkimine, aes(fill = Piirkond, color = Piirkond), 
+          color = NA, alpha = 1) +
+  geom_sf(color="lightblue", fill="lightblue", linewidth=1.5, data=tartu_emajõgi_clip) +
+  scale_fill_brewer(palette = "Set1", name = "Parkimistsoon") + 
+  theme_void() +
+  labs(
+    title = "Tartu Linna Parkimistsoonid"
+  )
+```
+
+```{r}
+ggsave("tartu_kaart.pdf", paper="a4")
+```
+
+\
+\
+\
+\
+
+\
+\
+\
+
+```{r}
+# Laeme vajalikud paketid
+library(sf)
+library(ggplot2)
+library(dplyr)
+library(osmdata)
+library(ggrepel)
+library(ggspatial)
+library(stringr)
+# library(RColorBrewer) # Võib olla kasulik värviskeemide loomiseks
+
+# 1.1 Määrake Tartu koordinaatide piir
+tartu_bb = getbb("Tartu, Estonia")
+
+# 1.1 Tartu linna halduspiiri laadimine OSM-ist
+tartu_piirid = opq(tartu_bb) %>% 
+  add_osm_feature(key = "boundary", value = "administrative") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf() %>% 
+  clean_osm_data()
+
+# Valime multipolügonid, mis vastavad Tartu linnale (admin_level=8)
+tartu_linn_piir = tartu_piirid$osm_multipolygons %>% 
+  filter(admin_level == 8) %>% 
+  filter(str_detect(name, "Tartu"))
+
+# 1.2 Tartu linna piiri teisendamine (samasse CRS-i)
+# target_crs on EPSG:3301 või muu L-EST CRS
+tartu_linn_piir_transf = st_transform(tartu_linn_piir, target_crs)
+
+# 2. Emajõe Lõikamine (Clipping)
+
+# Teostame lõikamise, et Emajõgi ulatuks ainult linna piiridesse:
+# Funktsioon st_intersection lõikab emajogi_transf geomeetria tartu_linn_piir_transf geomeetriaga.
+emajogi_loplik = st_intersection(emajogi_transf, tartu_linn_piir_transf)
+
+# 1.2 Laadige alla täiendavad OSM andmed (näiteks jõgi ja teed)
+# Emajõe laadimine (veekogud)
+emajogi = opq(tartu_bb) %>% 
+  add_osm_feature(key = "waterway", value = "river") %>%
+  osmdata_sf()
+
+# Olulisemad teed (liikuvuse kontekstis vajalikud)
+tartu_teed = opq(tartu_bb) %>% 
+  add_osm_feature(key = "highway") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf() %>% 
+  clean_osm_data()
+
+# 1.3 OSM-i andmete filtreerimine ja puhastamine
+emajogi_sf = emajogi$osm_lines %>% 
+  filter(name == "Emajõgi") 
+
+tartu_teed_suured = tartu_teed$osm_lines %>% 
+  filter(highway %in% c("primary", "secondary", "tertiary"))
+
+# 2. Tartu Avaandmete (Parkimisalad) Laadimine ja Töötlus
+parkimisalad = st_read("./data/Parkimisala.shp")
+
+target_crs = st_crs(parkimisalad)
+
+emajogi_transf = st_transform(emajogi_sf, target_crs)
+teed_transf = st_transform(tartu_teed_suured, target_crs)
+
+# Nüüd on kõik andmed (parkimisalad, jõgi, teed) ühes ja samas projitseeritud koordinaatsüsteemis.
+
+# 2.2 Olulisemate asukohtade lisamine (Tartu nimega kohad)
+# Näiteks Tartu kesklinn või Raekoja plats.
+# OSM-ist võib otsida ka "amenity=place_of_worship" (kirikud) või "tourism=attraction".
+olulised_kohad = data.frame(
+  nimi = c("Raekoja Plats", "Tartu Ülikooli Peahoone", "Vanemuine"),
+  lon = c(26.7238, 26.7196, 26.7197),
+  lat = c(58.3779, 58.3804, 58.3756)
+) %>% 
+  st_as_sf(coords = c("lon", "lat"), crs = 4326) %>% 
+  st_transform(target_crs)
+```
+
+```{r}
+parkimisalad <- parkimisalad %>%
+  mutate(Tasu = as.factor(Tasu))
+
+```
+
+```{r}
+ggplot() +
+  
+  # 1. Taust (Linna piir)
+  geom_sf(data = tartu_linn_piir_transf, 
+          fill = "grey95", color = "grey50", linewidth = 0.5, alpha = 0.4) +
+
+  # 2. Vesi
+  geom_sf(data = emajogi_loplik, 
+          fill = "#a6bddb", color = "#a6bddb") + 
+  
+  # 3. Parkimisalad (Tõstame selle teede ALLA või teeme kindlaks, et CRS on õige)
+  # OLULINE: Lisasin st_transform, et sundida koordinaadid õigeks
+  geom_sf(data = st_transform(parkimisalad, st_crs(tartu_linn_piir_transf)), 
+          aes(fill = as.factor(Tasu)), 
+          color = "white", linewidth = 0.1, alpha = 0.7) + 
+  
+  # 4. Tänavad ja teed 
+  # Jätsin alles AINULT selle lõigatud versiooni. Kustutasin duplikaadi koodi lõpust.
+  geom_sf(data = st_intersection(teed_transf, tartu_linn_piir_transf), 
+          color = "#636363", linewidth = 0.5, alpha = 0.6) + 
+
+  geom_sf(data = olulised_kohad, color = "black", size = 2) +
+  
+  # 6. Sildid
+  geom_sf_text_repel(data = olulised_kohad, 
+                     aes(label = nimi), 
+                     size = 3, 
+                     color = "black",
+                     bg.color = "white",
+                     bg.r = 0.1,
+                     nudge_x = 0.05,
+                     nudge_y = 0.05) +
+  
+  # 7. Kujundus
+  scale_fill_brewer(palette = "Set1", name = "Parkimistasu") + 
+  coord_sf(crs = target_crs) +   # See määrab lõpliku vaate
+  theme_void() + 
+  labs(
+    title = "Tartu Linna Parkimisalad ja Tähtsamad Kohad"
+  )
+```
+
+```{r}
+
+
+
+ggplot() +
+    geom_sf(data = tartu_linn_piir_transf, 
+          fill = "grey95", color = "grey50", linewidth = 0.5, alpha = 0.4) +
+  
+  geom_sf(data = emajogi_loplik, fill = "#a6bddb", color = "#a6bddb") + 
+
+  geom_sf(data = teed_transf, color = "#636363", linewidth = 0.5, alpha = 0.6) + 
+  
+
+  geom_sf(data = parkimisalad, aes(fill = Tasu), 
+          color = "white", linewidth = 0.1, alpha = 0.7) + 
+
+  geom_sf(data = olulised_kohad, color = "darkred", size = 2) +
+  geom_sf_text_repel(data = olulised_kohad, 
+                     aes(label = nimi), 
+                     size = 3, 
+                     color = "darkred",
+                     bg.color = "white",
+                     bg.r = 0.1,
+                     nudge_x = 0.05,
+                     nudge_y = 0.05) +
+  
+  
+  scale_fill_brewer(palette = "Set1", name = "Parkimistasu") + 
+  coord_sf(crs = target_crs) + 
+  theme_void() + 
+  labs(
+    title = "Tartu Linna Parkimisalad ja Tähtsamad Kohad",
+  ) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        legend.position = "right")
+
+# Salvestamine A4-le printimiseks
+# ggsave("Tartu_Parkimiskaart_A4.pdf", width = 8.3, height = 11.7, units = "in")
+```
+
+```{r}
+library(sf)
+library(ggplot2)
+library(dplyr)
+library(osmdata)
+library(ggrepel)
+library(ggspatial)
+library(stringr)
+
+# --- 1. MÄÄRAME PROJEKTSIOONI (Väga oluline!) ---
+# Eesti ametlik koordinaatsüsteem L-EST 97 on EPSG:3301
+target_crs <- 3301 
+
+# --- 2. PARKIMISALADE LAADIMINE JA PARANDAMINE ---
+# Laeme parkimisalad esimesena, et näha, kas need töötavad
+parkimisalad <- st_read("./data/Parkimisala.shp")
+
+# KONTROLL: Sageli puudub Eesti shapefailidel .prj fail. 
+# Kui st_crs ütleb NA või on vale, määrame selle sunniviisiliselt.
+# Eeldame, et parkimisalad on L-EST 97 süsteemis (kui koordinaadid on 600000 kandis).
+if (is.na(st_crs(parkimisalad))) {
+  st_crs(parkimisalad) <- 3301
+} else {
+  # Kui CRS on olemas, siis transformeerime kindluse mõttes
+  parkimisalad <- st_transform(parkimisalad, target_crs)
+}
+
+parkimisalad <- parkimisalad %>% 
+  mutate(Tasu = as.factor(Tasu))
+
+# --- 3. OSM ANDMETE PÄRIMINE (Tartu) ---
+tartu_bb <- getbb("Tartu, Estonia")
+
+# 3.1 Tartu linna piir
+tartu_piirid <- opq(tartu_bb) %>% 
+  add_osm_feature(key = "boundary", value = "administrative") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf() %>% 
+  clean_osm_data()
+
+tartu_linn_piir <- tartu_piirid$osm_multipolygons %>% 
+  filter(admin_level == 8) %>% 
+  filter(str_detect(name, "Tartu")) %>%
+  st_transform(target_crs) # Teisendame kohe L-EST 97-sse
+
+emajogi_loplik <- st_intersection(emajogi_sf, tartu_linn_piir)
+
+# 3.2 Emajõgi
+emajogi_raw <- opq(tartu_bb) %>% 
+  add_osm_feature(key = "waterway", value = "river") %>%
+  osmdata_sf()
+
+emajogi_sf <- emajogi_raw$osm_lines %>% 
+  filter(name == "Emajõgi") %>%
+  st_transform(target_crs)
+
+# Lõikame jõe, et see ei läheks üle linna piiri (Clipping)
+emajogi_loplik <- st_intersection(emajogi_sf, tartu_linn_piir)
+
+# 3.3 Teed
+tartu_teed_raw <- opq(tartu_bb) %>% 
+  add_osm_feature(key = "highway") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf() %>% 
+  clean_osm_data()
+
+tartu_teed_suured <- tartu_teed_raw$osm_lines %>% 
+  filter(highway %in% c("primary", "secondary")) %>% # Võtsin tertiary vähemaks, et kaart oleks puhtam
+  st_transform(target_crs)
+
+# Lõikame ka teed linna piiridesse, et kaart oleks ilusam
+teed_loplik <- st_intersection(tartu_teed_suured, tartu_linn_piir)
+
+# --- 4. OLULISED KOHAD ---
+olulised_kohad <- data.frame(
+  nimi = c("Raekoja Plats", "Tartu Ülikool", "Vanemuine"),
+  lon = c(26.7238, 26.7196, 26.7197),
+  lat = c(58.3779, 58.3804, 58.3756)
+) %>% 
+  st_as_sf(coords = c("lon", "lat"), crs = 4326) %>% # Sisend on WGS84 (Google Mapsi koordinaadid)
+  st_transform(target_crs)                           # Teisendame L-EST 97-sse
+
+# --- 5. JOONISTAMINE ---
+ggplot() +
+  # 1. Linna taust
+  geom_sf(data = tartu_linn_piir, 
+          fill = "grey97", color = "grey50", linewidth = 0.5) +
+  
+  # 2. Vesi
+  geom_sf(data = emajogi_loplik, 
+          color = "#a6bddb", linewidth = 1.5) + # Jõgi on joon, mitte fill
+  
+  # 3. Teed
+  geom_sf(data = teed_loplik, 
+          color = "grey70", linewidth = 0.4) +
+  
+  # 4. Parkimisalad (Kõige olulisem kiht!)
+  geom_sf(data = parkimisalad, aes(fill = Tasu), 
+          color = NA, alpha = 0.8) + # color=NA kaotab piirjooned, teeb pildi selgemaks
+  
+  # 5. Punktid ja tekstid
+  geom_sf(data = olulised_kohad, color = "black", size = 2) +
+  geom_sf_text_repel(data = olulised_kohad, 
+                     aes(label = nimi), 
+                     size = 3.5, 
+                     fontface = "bold",
+                     bg.color = "white",
+                     bg.r = 0.15) +
+  
+  # 6. Kujundus
+  scale_fill_brewer(palette = "Set1", name = "Parkimistsoon") + 
+  coord_sf(crs = target_crs) + # Tagame, et plot püsib L-EST süsteemis
+  theme_void() + 
+  labs(
+    title = "Tartu Linna Parkimisalad",
+    subtitle = "Andmed: Tartu Avaandmed & OpenStreetMap"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    legend.position = "bottom"
+  )
+```
+
+## Koduülesanne (interaktiivne kaart)
+
+Tehke kasutades avaanmdeid ka interaktiivne kaart. Kuna interaktiivne lahendus võimaldab sisse ja välja zoomida ning vajadusel täpsemat infot küsida, siis on võimalik panna peale rohkem infot. Lõpptulemusena võiks tekkida kaart mis võimaldab avaandmete põhjal midagi kasulikku teha. Sellele kaardil võiks olla vähemalt kolm kihti ja legend. Kindlasti tasub uurida ka erinevaid interaktiivseid võimalusi millest praksis ei jõudnud rääkida <https://rstudio.github.io/leaflet/>.
+
+```{r}
+
+```

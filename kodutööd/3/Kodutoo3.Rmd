@@ -1,0 +1,304 @@
+---
+title: "Kodutöö 3"
+output: html_notebook
+---
+
+## Kodutöö esitamise õpetus
+
+Iga ülesande lahendus peaks mahtuma ühte või mitmesse koodiaknasse, selle ülesande all. See kood peab olema kirjutatud nii, et saaks käima tõmmata ilma mõtlemata. See tähendab, et kõik vajalikud lisapaketid ja andmestikud loetakse sisse vastavas koodiaknas ning esitatud .zip failis on ka kõik andmestikud kaasas.
+
+Esita kogu kodutöö kataloog zip failina lehel <https://courses.cs.ut.ee/2025/dataviz/fall/Main/Homework>.
+
+## Ülesanne 1
+
+Loe sisse andmestik `PF16_2024.RData`. Maatriks `pf16_mat` sisaldab ühe isiksusetesti vastuseid portsu inimeste kohta. Ridades on inimeste andmed ja veergudes küsimuste vastused viie punktisel skaalal. Kus 1 on "ei ole üldse nõus" ja 5 on "nõustun täielikult". Nii ridade kui veergude kohta on meil ka meta-andmed, andmetabelid `ar` ja `ac`. Küsimuste kohta on teada kategooria ja küsimuse tekst. Inimeste kohta teame nende päritoluriiki, sugu ja vanust.
+
+-   Joonista maatriksist `pf16_mat` soojuskaart ja vasta paari lausega järgmistele küsimustele (40% punktidest)
+
+    -   Kas riik või vanus on seotud vastustega küsimustele?
+
+    -   Kas küsimused grupeeruvad kuidagi vastuste põhjal?
+
+    -   Vihje: kuna annotatsioone on palju kasuta võimalust genereerida graafiku fail, mis on suurem kui Rnotebooki graafiku aken. Samas võiks genereeritud fail siiski olla piisavalt väike, et mahub loetavalt ekraanile.
+
+-   Kasutades peakomponentide analüüsi ja t-SNEd uuri kas ka nendel graafikutel tulevad välja seosed vastuste ning riikide, vanuse ja soo vahel. Kirjelda paari lausega mis seosed sa leiad ja kas t-SNE ja peakomponentide analüüs annavad sarnased või erinevad tulemused. (40% punktidest)
+
+-   Proovi luua graafik mis toob välja selgelt mingite (mitte kõigi) konkreetsete küsimuste vastamise mustri eri riikides. Et oleks võimalik graafikult selgelt välja lugeda küsimuste sõnastus ja nende vastuste muster erinevatest riikidest pärit inimeste seas. Kirjelda millist seost sa pildilt näed (20% punktidest)
+
+Joonised peavad olema korrektsed ja selgelt loetavad.
+
+```{r}
+
+```
+
+## Ülesanne 2
+
+Failis `reddit_graph.RData` on andmed Redditi subredditite kohta kus servadeks on lingid ühes subredditist teise. Nii servade kui tippude kohta on lisainformatsiooni, näiteks mitu korda on lingitud ühest subredditist teise ja milline on keskmine sentiment nendel postitustel (1 on positiivne ja 0 negatiivne). Tippude kohta on antud pealkirjad kirjeldused ja märksõnad. Proovige leida mõni huvitav seos antud graafil ning seda ka graafina visualiseerida.
+
+Esitada tuleks nii graafi genereeriv kood kui ka selgitus, mida te pildilt välja lugesite. Pildi puhul hindan, milliseid võtteid te olete kasutanud pildi ettevalmistamisel, kasutatud võiks olla vähemalt üks element kõigest järgnevast.
+
+-   On leitud sobiv punktide paigutus
+
+-   On muudetud tippude graafilisi omadusi
+
+-   On muudetud servade graafilisi omadusi
+
+-   On näidatud ära huvipakkuvamad tipud nime või mõne muu tekstiga
+
+-   On kasutatud graafi algoritme, andmete eeltöötluseks või graafiliste elementide lisamiseks
+
+Lisaks tehnilisele poolele hindan järelduse ja graafiku kokkulangevust ning graafiku visuaalset vormistust.
+
+```{r}
+
+
+```
+
+## Ülesanne 3
+
+Tehke A4 (mõõdud 8.3 x 11.7) peal väljaprinditav kaart Tartu linnast. Kus on välja toodud huvitavaid andmeid Tartu avaandmete portaalist (<https://geohub.tartulv.ee/pages/avaandmed>). Sealt saab alla laadid Shapefile, mis tuleks ka kodutööga ka kaasa panna.
+
+Mõned asjad võiks kindlasti olla näidatud ka nimega. Kaart võiks olla visuaalselt puhas ja kena välja näha, nii et nimed oleks loetavad ja ei kattu, ei ole mingeid suvalisi teejuppe mis kuhugi ei vii. Kindlasti võiks peal olla ka jõgi. Hindamisel vaatan ka kas on kasutatud geograafilisi teisendusi ning kas kaart moodustab sisulise terviku.
+
+```{r}
+library(tidyverse)
+library(sf)
+library(osmdata)
+library(leaflet)
+library(ggrepel)
+# install.packages("devtools")
+# devtools::install_github("yutannihilation/ggsflabel")
+library(ggsflabel)
+
+clean_osm_data = function(x, retain_named = F){
+  for(i in names(x)){
+    if(str_detect(i, "osm") & !is.null(x[[i]])){
+      if(nrow(x[[i]]) == 0) { next} 
+      if(retain_named){
+        x[[i]] = x[[i]] %>% 
+          filter(!is.na(name))
+      }
+      
+      # res = x[[i]] %>% keep(~ mean(is.na(na_if(.x, ""))) < 0.2) 
+      res = x[[i]] %>% keep(function(.x) if(is.list(.x)){return(T)} else {mean(is.na(na_if(.x, ""))) < 0.2} ) 
+      if(("name" %in% colnames(x[[i]])) & (!("name" %in% colnames(res)))){
+        name = x[[i]] %>% as.data.frame() %>% select(name) 
+        res = res %>% bind_cols(name)
+      }
+      x[[i]] = res
+    }
+  }
+  
+  return(x)
+}
+```
+
+```{r}
+tartu_bb = getbb("Tartu")
+
+hooned = opq(tartu_bb) %>% 
+  add_osm_feature(key = "building") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf() %>% 
+  clean_osm_data()
+
+asutused = opq(tartu_bb) %>% 
+  add_osm_feature(key = "amenity") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf() #%>% 
+  #clean_osm_data(retain_named = T)
+
+teed = opq(tartu_bb) %>% 
+  add_osm_feature(key = "highway") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf()%>% 
+  clean_osm_data()
+
+piirid = opq(tartu_bb) %>% 
+  add_osm_feature(key = "boundary", value = "administrative") %>% 
+  osmdata_sf() %>% 
+  unname_osmdata_sf() %>% 
+  clean_osm_data()
+
+emajõgi = opq(tartu_bb) %>%
+  add_osm_feature(key = "waterway", value = "river") %>%
+  osmdata_sf() %>% 
+  unname_osmdata_sf()%>% 
+  clean_osm_data()
+```
+
+```{r}
+tartu_asutused = asutused$osm_points %>% bind_rows(st_centroid(asutused$osm_polygons))
+
+tartu_hooned = hooned$osm_polygons
+
+tartu_teed = teed$osm_lines %>% 
+  filter(!(highway %in% c("steps", "path", "footway", "cycleway", "service", "track", "pedestrian", "living_street")))
+
+# See ei töödanud 100%, kasutasin hiljem teede bounding boxi
+tartu_piir = piirid$osm_multipolygons %>% 
+  filter(admin_level == 7, name == "Tartu linn") %>% 
+  st_union() %>% 
+  st_as_sf()
+
+tartu_teed2 = tartu_teed %>%
+  st_intersection(y = tartu_piir)
+
+tartu_hooned2 = tartu_hooned %>%
+  #st_intersection(y = tartu_piir)
+  filter(st_intersects(x = ., y = tartu_piir, sparse = FALSE))
+```
+
+```{r}
+parkimine = st_read("./data/Parkimisala.shp")
+
+parkimine = parkimine %>% 
+  st_transform(crs = st_crs(tartu_piir))
+
+parkimine = parkimine %>%
+  mutate(Piirkond = factor(Piirkond))
+
+tartu_emajõgi = emajõgi$osm_multilines %>% 
+  st_transform(crs = st_crs(tartu_piir))
+
+teed_bbox = st_bbox(tartu_teed2)
+
+teed_bbox_poly = st_as_sfc(teed_bbox) %>%
+  st_set_crs(st_crs(tartu_teed2))
+
+tartu_emajõgi_clip = tartu_emajõgi %>%
+  st_intersection(teed_bbox_poly)
+```
+
+```{r}
+ggplot() +
+  geom_sf(color="gray90", fill="gray90", data=tartu_hooned2) +
+  geom_sf(color="gray30", data=tartu_teed2) +
+  geom_sf(data=parkimine, aes(fill = Piirkond, color = Piirkond), 
+          color = NA, alpha = 1) +
+  geom_sf(color="lightblue", fill="lightblue", linewidth=1.5, data=tartu_emajõgi_clip) +
+  scale_fill_brewer(palette = "Set1", name = "Parkimistsoon") + 
+  theme_void() +
+  labs(
+    title = "Tartu Linna Parkimistsoonid"
+  )
+```
+
+```{r}
+ggsave("tartu_kaart.pdf", paper="a4")
+```
+
+## Ülesanne 4
+
+Tehke kasutades avaanmdeid ka interaktiivne kaart. Kuna interaktiivne lahendus võimaldab sisse ja välja zoomida ning vajadusel täpsemat infot küsida, siis on võimalik panna peale rohkem infot. Lõpptulemusena võiks tekkida kaart mis võimaldab avaandmete põhjal midagi kasulikku teha. Sellele kaardil võiks olla vähemalt kolm kihti ja legend. Kindlasti tasub uurida ka erinevaid interaktiivseid võimalusi millest praksis ei jõudnud rääkida <https://rstudio.github.io/leaflet/>.
+
+```{r}
+install.packages("leaflet.extras")
+```
+
+```{r}
+library(leaflet)
+library(dplyr)
+library(sf)
+library(htmltools)
+library(RColorBrewer)
+library(leaflet.extras)
+
+
+parkimine <- st_read("./data/Parkimisala.shp")
+
+parkimine_sf <- parkimine %>%
+  st_transform(4326)
+
+olulised_kohad <- data.frame(
+  nimi = c("Raekoja plats", "Tartu Ülikool (peahoone)", "Vanemuine (suur maja)"),
+  lon = c(26.7231983, 26.720016, 26.724167),
+  lat = c(58.3802548, 58.381052, 58.376389),
+  info = c("Tsoon 0/1", "Tsoon 1", "Tsoon 0/1/2")
+) %>%
+  st_as_sf(coords = c("lon", "lat"), crs = 4326)
+
+parkimine_sf$sisu <- with(parkimine_sf,
+  paste0(
+    "<b>Nimetus:</b> ", Nimi, "<br>",
+    "<b>Parkimistsoon:</b> ", Piirkond, "<br>",
+    "<b>Parkimistasu info:</b> ", Parkimista, "<br>",
+    "<b>Hinnanguline kohtade arv:</b> ", Kohtade_ar, "<br>"
+  )
+)
+
+
+piirkonna_varvid <- colorFactor(
+  palette = "Set2",
+  domain = parkimine_sf$Piirkond,
+  levels = sort(unique(parkimine_sf$Piirkond))
+)
+
+must_ikoon <- makeAwesomeIcon(
+  icon = 'circle',      
+  markerColor = 'black',
+  iconColor = 'white'   
+)
+
+tartu_kaart <- leaflet(parkimine_sf) %>%
+  addProviderTiles(providers$CartoDB.Positron, group = "CartoDB Positron") %>%
+
+  addPolygons(
+    data = parkimine_sf,
+    fillColor = ~piirkonna_varvid(Piirkond),
+    weight = 1,
+    opacity = 1,
+    color = "white",
+    dashArray = "3",
+    fillOpacity = 0.6,
+    highlightOptions = highlightOptions(
+      weight = 3,
+      color = "#666",
+      fillOpacity = 0.9,
+      bringToFront = TRUE),
+    label = ~lapply(sisu, HTML),
+    group = "1. Parkimitsoonid"
+  ) %>%
+
+
+  addAwesomeMarkers(
+    data = olulised_kohad,
+    icon = must_ikoon,
+    label = ~nimi,
+    popup = ~paste0("<b>", nimi, "</b><br>", info),
+    group = "2. Olulised Kohad"
+  ) %>%
+
+  addLegend(
+    pal = piirkonna_varvid,
+    values = parkimine_sf$Piirkond,
+    title = "Parkimistsoon",
+    opacity = 0.8,
+    position = "bottomright"
+  ) %>%
+
+  addLayersControl(
+    overlayGroups = c("1. Parkimistsoonid", "2. Olulised Kohad"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+
+tartu_kaart
+```
+
+## Ülesanne 5
+
+Kasutades failis employee.RData olevat andmestikku employee tehke nüüd interaktiivne visualisatsioon. See andmestik kirjeldab ühe suurfirma töötajaid ning nende kohta on toodud terve hulk erinevaid tunnuseid. Sellel shiny rakendusel peaks olema vähemalt 3 erinevat kontrolli, millega parameetreid muuta. Tulemuseks saadav rakendus peaks olema ilusti vormistatud, kontrollid olema sisukad, pilt selge ning kergesti loetav.
+
+```{r}
+
+```
+
+## Ülesanne 6
+
+Andmestikus `ylevaatused.RData` on meile juba tuttav andmestik Eesti mootorsõidukite ülevaatustest. Kasutades shinydashboardi võimalusi tehke üks töölaud, mis võimaldaks uurida Eesti autoparki registreerimisaasta, automudeli ja vastava mudeli rikete tõenäosuse järgi. Töölaual peab olema mõni tabel, joonis ning vähemalt 2 dünaamilist ja sisukat väärtuste kasti. Kõik elemendid võiks olla loogiliselt ka omavahel seotud ning valikud eraldi kontrollidel ning töölaua elementidel võiks kajastuda ka mujal töölaual. Tuleks mõelda ka kasutaja mugavusele ja lisaks tehnilisele teostusele hindan ka sisulist terviklikkust.
+
+Eraldi tuleks välja kirjutada - Stsenaarium kuidas kasutaja antud tööriista kastuada võiks ja millist informatsiooni ta sellest rakendusest saada võiks - Kuidas tehtud disainivalikud võimaldavad kasutajal selle informatsiooni võimalikult efektiivset leidmist
+
+```{r}
+
+```
