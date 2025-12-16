@@ -1,0 +1,1099 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+## Sissejuhatus
+
+Täna jätkame shiny tutvustamist ja proovime katta erinevaid praktilisi teemasid seoses näidikutahvlite loomisega. Selleks kasutame päris mitmeid lisapakette, mis meil seda tööd teha aitavad. Kui neid veel installitud pole oleks hea aeg seda praksi alguses teha. Loeme kõik lisapaketid ning ka täna kasutatava andmestiku sisse.
+
+```{r}
+library(tidyverse)
+library(shiny)
+library(DT)
+library(leaflet)
+library(plotly)
+library(shinydashboard)
+library(ggrepel)
+
+load("counties.RData", verbose = T)
+```
+
+## Tabelid
+
+Loengus sai räägitud, et tihti on kõige efektiivsem viis infot edasi anda mitte graafik vaid hoopis interaktiivne tabel. Interaktiivne tabel mida saab sorteerida erinevate väärtuste järgi ja tunnuse tasemete järgi filtreerida aitab vastata paljudele küsimustele, mis graafikute puhul on rasked kiiresti välja tuua.
+
+-   Millisel elemendil on kõige suurem/väiksem väärtus tunnusel X?
+
+-   Mis on elementi Y kirjeldavate peamiste karakteristikute väärtused?
+
+-   Millised on oluliste tunnuste väärtused mingis andmete alamhulgas?
+
+Tabelite shiny-s näitamiseks on eri viise, kuid kõige levinum kasutab JavaScripti teeki DataTables ja on implementeeritud paketis DT. Teeme lihtsa rakenduse, kus me seda teeki kasutame.
+
+```{r}
+ui = fluidPage(
+  dataTableOutput("table")
+)
+
+server = function(input, output){
+  output$table = renderDataTable({
+    datatable(counties)
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+### Tabeli kujundamine
+
+Tabeli väljanägemist saab kontrollida argumendiga `class`, mis võib võtta väärtusi `cell-border`, `compact`, `hover`, `nowrap`, `order-column`, `row-border` ja `stripe` ning nende kombinatsioone tühikuga eraldatult.
+
+```{r}
+ui = fluidPage(
+  dataTableOutput("table")
+)
+
+server = function(input, output){
+  output$table = renderDataTable({
+    datatable(counties, class = "compact stripe cell-border")
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Kõiki aspekte tabeli väljanägemisest saab kontrollida kasutades options argumenti. Millised on konkreetsed parameetrid mida saab tuunida, näeb lehelt <https://datatables.net/reference/option/>. Aga mõned tavalisemad variandid on: `paging`, `ordering`, `searching`, `lengthChange`, jne...
+
+```{r}
+ui = fluidPage(
+  dataTableOutput("table")
+)
+
+server = function(input, output){
+  output$table = renderDataTable({
+    datatable(counties, class = "compact hover", options = list(paging = F, searching = F))
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Võib anda ka ilusamad veerunimed argumendile `colnames`.
+
+```{r}
+ui = fluidPage(
+  dataTableOutput("table")
+)
+
+server = function(input, output){
+  output$table = renderDataTable({
+    datatable(counties, class = "compact hover", colnames = c("Population Estimate" = "pop_estimate", "Over 65 percentage" = "over65"))
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Mugav võimalus on ka filtreerida andmeid veergude kaupa, mida saab sisse lülitada argumendiga filter mille väärtusteks võib olla "none", "bottom" või "top".
+
+```{r}
+ui = fluidPage(
+  dataTableOutput("table")
+)
+
+server = function(input, output){
+  output$table = renderDataTable({
+    datatable(counties, class = "compact hover", colnames = c("Population Estimate" = "pop_estimate", "Over 65 percentage" = "over65"), filter = "top")
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Üksikute veergude stiili muutmiseks kasutatakse käsku formatStyle, sisuliselt saab sinna ette anda CSS parameetreid, kuid parameetriga background on võimalik ka väärtusi esile tuua. Näiteks styleColorBar teeb lahtrisse külili tulba.
+
+```{r}
+ui = fluidPage(
+  dataTableOutput("table")
+)
+
+server = function(input, output){
+  output$table = renderDataTable({
+    datatable(counties) %>% 
+      formatStyle(
+        "over65",
+        background = styleColorBar(c(0, max(counties$over65)), "lightgreen")
+      )
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Tegelikult on tabelite oma vajadustele kohandamiseks veel terve ports võimalusi mida võib uurida nii paketi DT õpetustest <https://rstudio.github.io/DT/>.
+
+### Tabeli ühendamine teiste elementidega
+
+Tabel on ka loomulik kontroll muudele aplikatsiooni osadele nimelt saab tabelil teha read ja veerud valitavaks ning seda infot siis serveri poolel ära kasutada, et muuta teisi elemente. Info valitud ridade kohta tekib `input` muutujasse mis on muutujas `<tabeli nimi>_rows_selected`.
+
+```{r}
+ui = fluidPage(
+  strong("Selected rows:"),
+  textOutput("selected_rows"),
+  hr(),
+  dataTableOutput("table")
+)
+
+server = function(input, output){
+  output$selected_rows = renderPrint({
+    input$table_rows_selected
+  })
+  
+  
+  output$table = renderDataTable({
+    datatable(counties) 
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Kasutame nüüd selle info ära ühe joonise täiendamisel.
+
+```{r}
+ui = fluidPage(
+  plotOutput("plot"),
+  hr(),
+  dataTableOutput("table"),
+  textOutput("print")
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+    p = ggplot(counties, aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+
+    if(!is.null(input$table_rows_selected)){
+      p = p + geom_label(aes(x = per_capita_inc, y = unemployment_rate, label = County), data = counties[input$table_rows_selected, ])
+    }
+   
+    p
+  })
+  
+  
+  output$table = renderDataTable({
+    datatable(counties) 
+  })
+  
+  output$print = renderPrint({names(input)})
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Ridade puhul saab määrata ka, et korraga saab valida ainult ühe või mitte ühtegi, või siis eelvalida mõned read. Kõike saab teha `selection` parameetri abil mis võtab sisse listi parameetritega: `mode`, `selected`, `target`, jne...
+
+```{r}
+ui = fluidPage(
+  plotOutput("plot"),
+  hr(),
+  dataTableOutput("table")
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+    p = ggplot(counties, aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+
+    if(!is.null(input$table_rows_selected)){
+      p = p + geom_label(aes(x = per_capita_inc, y = unemployment_rate, label = County), data = counties[input$table_rows_selected, ])
+    }
+   
+    p
+  })
+  
+  
+  output$table = renderDataTable({
+    datatable(counties, selection = list(mode = "single", selected = 5, target = "row")) 
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Peale valitud ridade/veergude on võimalik saada veel informatisooni. Näiteks, `table_rows_all` annab kõikide ridade numbrid mis näidatavas tabelis on, `table_rows_current` näitab neid mis praegu näha on, `table_cell_clicked` ütleb millisele lahtrile on vajutatud, jne.
+
+#### Ülesanne
+
+-   Tehke rakendus counties andmestiku põhjal mis näitab ülaltoodud pilti nende maakondade kohta mis parajasti tabelis olemas on (pole välja filtreeritud). Näidake ära veerud County, State, pop_estimate, per_capita_inc, unemployment_rate ja bachelor. Lisage igale veerule filter ja printige terve tabel. Igale veerule pange ilus nimi suurte tähtede ja ilma alakriipsudeta.
+
+```{r}
+ui = fluidPage(
+  plotOutput("plot"),
+  hr(),
+  dataTableOutput("table")
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+    p = ggplot(counties[input$table_rows_all, ], aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+
+    if(!is.null(input$table_rows_selected)){
+      p = p + geom_label(aes(x = per_capita_inc, y = unemployment_rate, label = County), data = counties[input$table_rows_selected, ])
+    }
+   
+    p
+  })
+  
+  
+  output$table = renderDataTable({
+    datatable(counties %>% select(County, State, pop_estimate, per_capita_inc, unemployment_rate, bachelor), colnames = c("Population Estimate" = "pop_estimate", "Per Capita income" = "per_capita_inc", "Unemployment" = "unemployment_rate", "High Education" = "bachelor"), filter = "top", options = list(paging = F)) 
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+## HTMLwidgets
+
+DataTables mida me just vaatasime on tegelikult üks JavaScripti teek mis on pakendatud R-i funktsioonidesse. Üldisem raamistik JavaScripti teekide üle toomiseks R-i on HTMLwidgets. Nii on pakendatud mitmeid tööriistu ja tehtud need R-is mugavalt kasutatavaks. Järgnevalt vaatame veel mõnda, mis võivad interaktiivsete lahenduste ja töölaudade loomisel kasulikuks osutuda.
+
+Täielikuma ülevaate võimalikest vahenditest saate lehelt <http://gallery.htmlwidgets.org/>
+
+### Plotly
+
+Plotly.js on JavaScripti teek mis põhineb D3.js-l ja pakub kõrge taseme graafikute joonistamise võimalusi. Mõnes mõttes sarnaselt nagu ggplot2 on R-s kõrge taseme graafikute joonistamiseks mõeldud. See paralleel on tegelikult ootamatult täpne. Kuna need kaks paketti on sarnaste eesmärkide ja loogikaga on kirjutatud funktsioon `ggplotly`, mis võimaldab ggplot2 pilte otse plotly piltideks teisendada. Eeliseks `plotly` piltide puhul on see, et neile kui veebipõhistele visusliatsioonidele on palju lihtsam interaktiivseid omadusi lisada.
+
+```{r}
+ui = fluidPage(
+  plotlyOutput("plot"),
+  hr(),
+  dataTableOutput("table")
+)
+
+server = function(input, output){
+  output$plot = renderPlotly({
+    p = ggplot(counties, aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+
+    ggplotly(p)
+  })
+  
+  
+  output$table = renderDataTable({
+    datatable(counties) 
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+### Leaflet
+
+Teine HTMLwidget, mida me juba proovinud oleme on leaflet kaartide joonistmiseks. Ka see on juba iseenesest suhteliselt interaktiivne aga see on võimalik ka panna serveriga suhtlema, nii et kaardil olevat informatsiooni uuendatakse vastavalt teistel elementidel tehtud valikutele ja ning kaardi operatsioonid jälle annavad infot muude elementide uuendamiseks.
+
+```{r}
+ui = fluidPage(
+  textOutput("parameters"),
+  leafletOutput("mymap"),
+  hr(),
+  dataTableOutput("table")
+)
+
+server = function(input, output){
+  output$mymap = renderLeaflet({
+    leaflet() %>%
+      addProviderTiles(
+        "OpenStreetMap.Mapnik",
+        options = providerTileOptions(noWrap = TRUE)
+      ) %>%
+      addCircleMarkers(label = ~County, popup = ~County, lat = ~latitude, lng = ~longitude, data = counties)
+  })
+  
+  output$table = renderDataTable({
+    datatable(
+      counties %>% 
+        filter(latitude > input$mymap_bounds$south) %>% 
+        filter(latitude < input$mymap_bounds$north) %>% 
+        filter(longitude < input$mymap_bounds$east) %>% 
+        filter(longitude > input$mymap_bounds$west) 
+    ) 
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Kõigist valikutest siinkohal kindlasti ülevaadet anda pole võimalik. Neid võib vaadata juba vastavate pakettide tutorialites.
+
+#### Ülesanne
+
+-   Modifitseeri eelmises ülesandes alustatud rakendust järgnevalt.
+
+    -   Lisa kaart koos asukoha markeritega
+
+    -   Muuda graafik plotly kujule ja näita ainult kaardile mahtuvaid punkte.
+
+    -   Näita tabelis ainult kaardile mahtuvaid punkte.
+
+```{r}
+ui = fluidPage(
+  fluidRow(
+    column(
+      6,
+      plotlyOutput("plot")
+    ),
+    column(
+      6,
+      leafletOutput("map")
+    )
+  ),
+  hr(),
+  dataTableOutput("table")
+)
+
+server = function(input, output){
+  output$plot = renderPlotly({
+    d = counties %>% 
+        filter(latitude > input$map_bounds$south) %>% 
+        filter(latitude < input$map_bounds$north) %>% 
+        filter(longitude < input$map_bounds$east) %>% 
+        filter(longitude > input$map_bounds$west) 
+    
+    p = ggplot(d, aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+
+    if(!is.null(input$table_rows_selected)){
+      p = p + geom_label(aes(x = per_capita_inc, y = unemployment_rate, label = County), data = counties[input$table_rows_selected, ])
+    }
+   
+    ggplotly(p)
+  })
+  
+  output$map = renderLeaflet({
+    leaflet() %>%
+      addProviderTiles(
+        "OpenStreetMap.Mapnik",
+        options = providerTileOptions(noWrap = TRUE)
+      ) %>%
+      addCircleMarkers(label = ~County, popup = ~County, lat = ~latitude, lng = ~longitude, data = counties)
+  })
+  
+  output$table = renderDataTable({
+    d = counties %>% 
+      filter(latitude > input$map_bounds$south) %>% 
+      filter(latitude < input$map_bounds$north) %>% 
+      filter(longitude < input$map_bounds$east) %>% 
+      filter(longitude > input$map_bounds$west) 
+    datatable(d %>% select(County, State, pop_estimate, per_capita_inc, unemployment_rate, bachelor), colnames = c("Population Estimate" = "pop_estimate", "Per Capita income" = "per_capita_inc", "Unemployment" = "unemployment_rate", "High Education" = "bachelor"), filter = "top", options = list(paging = F)) 
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+## Shinydashboard
+
+Siiamaani oleme vaadanud tehnilisi vahendeid kuidas interaktiivseid lahendusi luua, kuid kui me mõtleme konkreetsemalt töölaudadele siis on terve hulk kujunduslikke elemente mis on just neile omased. Selleks, et shinyga oleks töölaudu mugavam luua on loodud pakett `shinydashboard`, mis defineerib üldise elementide paigutuse, töölauale sobivad graafilised elemendid ja nende omavahelised suhted. Mõnes mõttes on selle paketi kasutamine väga saranane teiste shiny eeldefineeritud paigutuste (näit. sidebarLayout) kasutamisele, aga see on mõnevõrra reglementeeritum.
+
+Kogu shinydashboardi struktuur on jagatud kolmeks.
+
+-   Päis
+
+-   Küljeriba
+
+-   Peapaneel
+
+Defineerime esialgu lihtsalt tühja rakenduse, kus kõik need elemendid on olemas.
+
+```{r}
+ui = dashboardPage(
+  dashboardHeader(),
+  dashboardSidebar(),
+  dashboardBody()
+)
+
+server = function(input, output){
+  
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Hakkame nüüd ükshaaval vaatama milliseid elemente me erinevatesse jaotustesse panna saame.
+
+### Peapaneel
+
+#### Kastid
+
+Peapaneelile võib panna koomulikult kõikvõimalikku shiny sisu aga nii võib olla raske saavutada ilusat struktureeritud väljanägemist, sest näidikutahvleid iseloomustab erinevate sisuelementide rohkus. Seetõttu on shinydashboardis peamine kujunduselement kast (*box*), mille sisse saab kogu sisu ära paigutada ning mida saab omakorda vabalt lehel kombineerida. Kasti tegemine käib käsuga `box`. Sisu lisamine box sisse käib nii nagu ikka. Pealkirja saab kastile anda argumendiga `title`.
+
+```{r}
+ui = dashboardPage(
+  dashboardHeader(),
+  dashboardSidebar(),
+  dashboardBody(
+    box(
+      title = "Box1", 
+      plotOutput("plot")
+    ), 
+    box(
+      title = "Box2",
+      p("see on kast2")
+    ),
+    box(
+      h1("Box3"),
+      p("siin on kast 3", style = "color:grey")
+    )
+  )
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+    ggplot(counties, aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Huvitav omadus kastidel on, et nende päise värviga saab edasi anda ka sõnumit kasti sisu osas. On defineeritud konkreetsed staatused, mida see värv edasi annab.
+
+![](images/Screenshot%202021-04-12%20at%2009.59.44.png)
+
+Nende värvide kontrollimiseks on käsul box järgnevad argumendid
+
+-   `status` - tausta värv
+
+-   `solidHeader` - kas värvi näidatakse peenikese või paksema ribana
+
+Kastil saab muuta ka taustavärvi argumendiga background ning võimalikud värvivalikud on järgnevad. Need värvivalikud toimivad läbi `shinydashboard`-i ning tagavad enam vähem sobiva värviskeemi.
+
+![](https://rstudio.github.io/shinydashboard/images/colors.png)
+
+```{r}
+ui = dashboardPage(
+  dashboardHeader(),
+  dashboardSidebar(),
+  dashboardBody(
+    box(
+      title = "Box1", 
+      status = "primary",
+      plotOutput("plot")
+    ), 
+    box(
+      title = "Box2",
+      status = "success",
+      solidHeader = T,
+      p("see on kast2")
+    ),
+    box(
+      h1("Box3"),
+      background = "fuchsia",
+      p("siin on kast 3", style = "color:grey")
+    )
+  )
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+    ggplot(counties, aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+#### Sakkidega kastid
+
+Ka kastidele saab sakke lisada ,et mitut visualisatsiooni ühes kastis näidata. Käib see käsuga tabBox, mille sisse saab sakke teha juba tuttava käsuga `tabPanel`.
+
+```{r}
+ui = dashboardPage(
+  dashboardHeader(),
+  dashboardSidebar(),
+  dashboardBody(
+    tabBox(
+      tabPanel(
+        "Graafik",
+        plotOutput("plot")
+      ),
+      tabPanel(
+        "Tekst",
+        p("See tekst kirjeldab nüüd täpsemalt mis toimub")
+      )
+    ), 
+    box(
+      title = "Box2",
+      status = "success",
+      solidHeader = T,
+      p("see on kast2")
+    ),
+    box(
+      h1("Box3"),
+      background = "fuchsia",
+      p("siin on kast 3", style = "color:grey")
+    )
+  )
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+    ggplot(counties, aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+#### Väärtuste kastid
+
+Konkreetsete väärtuste esile toomiseks on mõeldud eraldi kastid `infoBox` ja `valueBox`. Mõlemad annavad edasi sarnast infot, kuid näevad mõnevõrra erinevad välja. Mõlemal on argument `value`, kuid `valueBox`-le tuleb lisada `subtitle` ja `infoBox`-le title. Värvi saab muuta argumendiga `color`.
+
+```{r}
+ui = dashboardPage(
+  dashboardHeader(),
+  dashboardSidebar(),
+  dashboardBody(
+    box(
+      title = "Box1", 
+      status = "primary",
+      olidHeader = T,
+      plotOutput("plot")
+    ), 
+    infoBox(
+      value = "6%",
+      title = "Average unemployment",
+      color = "maroon"
+    ),
+    valueBox(
+      value = "23000",
+      subtitle = "Average income"
+    )
+  )
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+    ggplot(counties, aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Nagu me näeme lisati `infoBox`-le ka ikoon, mis võiks kasti sisu edasi anda. Tegelikult saab mõlemale kasti tüübile ikoone lisada argumendiga icon mis võtab sisse käsu icon tulemuse. Ikoonide valik tuleb järgnevast allikast: <https://fontawesome.com/search?o=r&s=solid&f=classic>.
+
+```{r}
+ui = dashboardPage(
+  dashboardHeader(),
+  dashboardSidebar(),
+  dashboardBody(
+    box(
+      title = "Box1", 
+      status = "primary",
+      olidHeader = T,
+      plotOutput("plot")
+    ), 
+    infoBox(
+      value = "6%",
+      title = "Average unemployment",
+      icon = icon("user-slash")
+    ),
+    valueBox(
+      value = "23000",
+      subtitle = "Average income",
+      icon = icon("credit-card")
+    )
+  )
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+    ggplot(counties, aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Praegu me andsime väärtused ette, kuid neid võib ka dünaamiliselt arvutada. Selleks tuleb infoBox ja valueBox defineerimine lükata rakenduse serveri osasse. Selle näitamine käib siis vastavalt funktsioonidega `renderInfoBox` ja `renderValueBox`.
+
+```{r}
+ui = dashboardPage(
+  dashboardHeader(),
+  dashboardSidebar(),
+  dashboardBody(
+    box(
+      title = "Box1", 
+      status = "primary",
+      solidHeader = T,
+      plotOutput("plot")
+    ), 
+    infoBoxOutput("unemployment"),
+    valueBoxOutput("income")
+  )
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+    ggplot(counties, aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+  })
+  
+  output$unemployment = renderInfoBox({
+    infoBox(
+      value = counties$unemployment_rate %>% mean() %>% round(),
+      title = "Average unemployment",
+      icon = icon("user-slash")
+    )
+  })
+  
+  output$income = renderValueBox({
+    valueBox(
+      value = counties$per_capita_inc %>% mean() %>% round(),
+      subtitle = "Average income",
+      icon = icon("dollar-sign")
+    )
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+#### Paigutus
+
+Kastide paigutuse kontrollimine on kõige lihtsam kasutades `fluidRow` ja `column` käske nagu eelnevas parktikumis sai näidatud. Kui me paneme ühte ritta ainult kastid, siis pole vaja eraldi veerge defineerida, kõikidel box funktsioonidel on argument width, mis jällegi kasutab seda 12 ühiku süsteemi nagu `fluidRow` üldisemalt.
+
+```{r}
+ui = dashboardPage(
+  dashboardHeader(),
+  dashboardSidebar(),
+  dashboardBody(
+    fluidRow(
+      box(
+        title = "Plot", 
+        width = 12,
+        status = "primary",
+        solidHeader = T,
+        plotOutput("plot")
+      )
+    ),
+    fluidRow(
+      infoBox(
+        width = 3,
+        value = "6%",
+        title = "Average unemployment",
+        icon = icon("user-slash")
+      ),
+      valueBox(
+        width = 9,
+        value = "23000",
+        subtitle = "Average income",
+        icon = icon("dollar-sign")
+      )
+    )
+  )
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+    ggplot(counties, aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+```{r}
+ui = dashboardPage(
+  dashboardHeader(),
+  dashboardSidebar(),
+  dashboardBody(
+    fluidRow(
+      box(
+        title = "Plot", 
+        width = 12,
+        status = "primary",
+        solidHeader = T,
+        plotOutput("plot")
+      )
+    ),
+    fluidRow(
+      column(
+        width = 8,
+        infoBox(
+          width = 12,
+          value = "6%",
+          title = "Average unemployment",
+          icon = icon("user-slash")
+        ),
+        valueBox(
+          width = 12,
+          value = "23000",
+          subtitle = "Average income",
+          icon = icon("dollar-sign")
+        )
+      )
+      
+    )
+  )
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+    ggplot(counties, aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+### Küljeriba
+
+Küljeriba on suurel määral sarnane kui küljeriba `sidebarLayout`-l, sinna saab paigutada kontrolle ja muud. Erinevusena saab lisada sinna `sidebarMenu` ning sellele menüü elemente `menuItem`-d, mis sisuliselt käituvad kui sakid ja nendega saab linkida `tabItems`-i sees defineeritud `tabItem`-le peapaneelil. Nii saab defineerida mitu lehte ja siis nende vahel vahetada. Menüü elemenedi defineerimisele saab sellele lisada ikoone ja silte.
+
+```{r}
+ui = dashboardPage(
+  dashboardHeader(),
+  dashboardSidebar(
+    sidebarMenu(
+      menuItem(
+        text = "Graafik",
+        icon = icon("chart-line"),
+        tabName = "graph"
+      ), 
+      menuItem(
+        text = "Statistika",
+        icon = icon("table"),
+        tabName = "stats",
+        badgeLabel = "Very Important!", 
+        badgeColor = "red" 
+      )
+    )
+  ),
+  dashboardBody(
+    tabItems(
+      tabItem(
+        "graph",
+        plotOutput("plot")
+      ),
+      tabItem(
+        "stats",
+        infoBox(
+          width = 6,
+          value = "6%",
+          title = "Average unemployment",
+          icon = icon("user-slash")
+        ),
+        valueBox(
+          width = 6,
+          value = "23000",
+          subtitle = "Average income",
+          icon = icon("dollar-sign")
+        )
+      )
+    )
+  )
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+    ggplot(counties, aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+### Päis
+
+Päises on vaikimisi ainult üks nupp mis võimaldab küljeriba sisse-välja lülitada. Sinna saab ka panna sõnumeid, märguandeid ja ülesandeid.
+
+```{r}
+ui = dashboardPage(
+  dashboardHeader(
+    dropdownMenu(type = "tasks", badgeStatus = "success",
+      taskItem(value = 90, color = "green",
+        "Documentation"
+      ),
+      taskItem(value = 17, color = "aqua",
+        "Project X"
+      ),
+      taskItem(value = 75, color = "yellow",
+        "Server deployment"
+      ),
+      taskItem(value = 80, color = "red",
+        "Overall project"
+      )
+    ), 
+    dropdownMenu(type = "notifications",
+      notificationItem(
+        text = "5 new users today",
+        icon("users")
+      ),
+      notificationItem(
+        text = "12 items delivered",
+        icon("truck"),
+        status = "success"
+      ),
+      notificationItem(
+        text = "Server load at 86%",
+        icon = icon("exclamation-triangle"),
+        status = "warning"
+      )
+    )
+  ),
+  dashboardSidebar(
+    sidebarMenu(
+      menuItem(
+        text = "Graafik",
+        icon = icon("chart-line"),
+        tabName = "graph"
+      ), 
+      menuItem(
+        text = "Statistika",
+        icon = icon("table"),
+        tabName = "stats",
+        badgeLabel = "Very Important!", 
+        badgeColor = "red" 
+      )
+    )
+  ),
+  dashboardBody(
+    tabItems(
+      tabItem(
+        "graph",
+        plotOutput("plot")
+      ),
+      tabItem(
+        "stats",
+        infoBox(
+          width = 6,
+          value = "6%",
+          title = "Average unemployment",
+          icon = icon("user-slash")
+        ),
+        valueBox(
+          width = 6,
+          value = "23000",
+          subtitle = "Average income",
+          icon = icon("dollar-sign")
+        )
+      )
+    )
+  )
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+    ggplot(counties, aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+#### Päise ja küljeriba välja lülitamine
+
+Nii päist kui küljeriba on võimalik ka välja lülitada argumendiga `disable = T`.
+
+```{r}
+ui = dashboardPage(
+  dashboardHeader(disable = T),
+  dashboardSidebar(disable = T),
+  dashboardBody(
+    box(
+      title = "Box1", 
+      status = "primary",
+      olidHeader = T,
+      plotOutput("plot")
+    ), 
+    infoBox(
+      value = "6%",
+      title = "Average unemployment",
+      icon = icon("user-slash")
+    ),
+    valueBox(
+      value = "23000",
+      subtitle = "Average income",
+      icon = icon("dollar-sign")
+    )
+  )
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+    ggplot(counties, aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+#### Ülesanne
+
+-   Konverteerige eelmises ülesandes alustatud rakendus nüüd `shinydashboard`-i kujundusele.
+
+    -   Rakenduse lahti tegemisel võiks olla näha tutvustav leht kus on ainult tekst (ärge sisuka teksti kirjtuamisega vaeva nähke)
+
+    -   Kuna kaardirakendust kasutatakse filtreerimiseks, võiks seda kogu aeg näha olla. Tabel ja graafik, võiks olla samas kastis erinevate sakkide all.
+
+    -   Lisaks võiks olla näha väärtusekaste valitud ridade keskmiste näitajate kohta.
+
+```{r}
+ui = dashboardPage(
+  dashboardHeader(),
+  dashboardSidebar(
+    sidebarMenu(
+      menuItem(
+        text = "Introduction",
+        tabName = "intro"
+      ),
+      menuItem(
+        text = "Application",
+        tabName = "app"
+      )
+    )
+  ),
+  dashboardBody(
+    tabItems(
+      tabItem(
+        "intro",
+        p("adfahjahgdkjahsdlöagk")
+      ),
+      tabItem(
+        "app",
+        box(
+          width = 12,
+          title = "Map",
+          leafletOutput("map")
+        ),
+        valueBoxOutput("income_box"),
+        valueBoxOutput("unemployment_box"), 
+        tabBox(
+          width = 12,
+          tabPanel(
+            title = "Plot",
+            plotlyOutput("plot")
+          ),
+          tabPanel(
+            title = "Table",
+            dataTableOutput("table")
+          )
+        )
+      )
+    )
+  )
+)
+
+ui2 = fluidPage(
+  fluidRow(
+    column(
+      6,
+      plotlyOutput("plot")
+    ),
+    column(
+      6,
+      leafletOutput("map")
+    )
+  ),
+  hr(),
+  dataTableOutput("table")
+)
+
+server = function(input, output){
+  output$plot = renderPlotly({
+    d = counties %>% 
+        filter(latitude > input$map_bounds$south) %>% 
+        filter(latitude < input$map_bounds$north) %>% 
+        filter(longitude < input$map_bounds$east) %>% 
+        filter(longitude > input$map_bounds$west) 
+    
+    p = ggplot(d, aes(x = per_capita_inc, y = unemployment_rate, color = bachelor, shape = State)) + 
+      geom_point()
+
+    if(!is.null(input$table_rows_selected)){
+      p = p + geom_label(aes(x = per_capita_inc, y = unemployment_rate, label = County), data = counties[input$table_rows_selected, ])
+    }
+   
+    ggplotly(p)
+  })
+  
+  output$income_box = renderValueBox({
+    d = counties %>% 
+        filter(latitude > input$map_bounds$south) %>% 
+        filter(latitude < input$map_bounds$north) %>% 
+        filter(longitude < input$map_bounds$east) %>% 
+        filter(longitude > input$map_bounds$west) 
+    
+    valueBox(
+      width = 6,
+      value = d$per_capita_inc %>% mean() %>% round(digits = 2), 
+      subtitle = "Average income over counties",
+      icon = icon("credit-card")
+    )
+  })
+  
+  output$unemployment_box = renderValueBox({
+    d = counties %>% 
+        filter(latitude > input$map_bounds$south) %>% 
+        filter(latitude < input$map_bounds$north) %>% 
+        filter(longitude < input$map_bounds$east) %>% 
+        filter(longitude > input$map_bounds$west) 
+    
+    valueBox(
+      width = 6,
+      value = d$unemployment_rate %>% mean() %>% round(digits = 2), 
+      subtitle = "Average unemployment over counties",
+      icon = icon("user-slash")
+    )
+  })
+  
+  output$map = renderLeaflet({
+    leaflet() %>%
+      addProviderTiles(
+        "OpenStreetMap.Mapnik",
+        options = providerTileOptions(noWrap = TRUE)
+      ) %>%
+      addCircleMarkers(label = ~County, popup = ~County, lat = ~latitude, lng = ~longitude, data = counties)
+  })
+  
+  output$table = renderDataTable({
+    d = counties %>% 
+      filter(latitude > input$map_bounds$south) %>% 
+      filter(latitude < input$map_bounds$north) %>% 
+      filter(longitude < input$map_bounds$east) %>% 
+      filter(longitude > input$map_bounds$west) 
+    datatable(d %>% select(County, State, pop_estimate, per_capita_inc, unemployment_rate, bachelor), colnames = c("Population Estimate" = "pop_estimate", "Per Capita income" = "per_capita_inc", "Unemployment" = "unemployment_rate", "High Education" = "bachelor"), filter = "top", options = list(paging = F)) 
+  })
+}
+
+shinyApp(ui = ui, server = server)
+
+```
+
+## Kodune ülesanne
+
+Andmestikus `ylevaatused.RData` on meile juba tuttav andmestik Eesti mootorsõidukite ülevaatustest. Kasutades shinydashboardi võimalusi tehke üks töölaud, mis võimaldaks uurida Eesti autoparki registreerimisaasta, automudeli ja vastava mudeli rikete tõenäosuse järgi. Töölaual peab olema mõni tabel, joonis ning vähemalt 2 dünaamilist ja sisukat väärtuste kasti. Kõik elemendid võiks olla loogiliselt ka omavahel seotud ning valikud eraldi kontrollidel ning töölaua elementidel võiks kajastuda ka mujal töölaual. Tuleks mõelda ka kasutaja mugavusele ja lisaks tehnilisele teostusele hindan ka sisulist terviklikkust.
+
+Eraldi tuleks välja kirjutada
+- Stsenaarium kuidas kasutaja antud tööriista kastuada võiks ja millist informatsiooni ta sellest rakendusest saada võiks
+- Kuidas tehtud disainivalikud võimaldavad kasutajal selle informatsiooni võimalikult efektiivset leidmist
+
+
+
+
+

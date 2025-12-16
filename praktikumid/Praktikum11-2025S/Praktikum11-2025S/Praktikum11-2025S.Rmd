@@ -1,0 +1,415 @@
+---
+title: "Praktikum 10 - Graafid ja võrgustikud"
+output: html_notebook
+---
+
+## Sissejuhatus
+
+Tänase praktikumi teema on graafide ja võrgustike visualiseerimine. Seda teeme me kasutades pakette `tidygraph` ja `ggraph`. Lisaks kasutamae andmestikku, kus on võetud viimase peamiselt 2020 populaarsemad Eesti lood Spotifyst ja nende esitajate kohta tekitatud võrgustik vastavalt sellele kes on omavahel koostööd teinud. Iga artisti kohta on teada tema populaarsus (skaalas 0-100) ja jälgijate arv. Iga serva puhul on kokku loetud koostöös valminud lugude arv ja kõige populaarsema loo populaarsus.
+
+```{r}
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+
+load("spotify_est2.RData", verbose = T)
+nodes_est
+edges_est
+```
+
+## Graafi objekt
+
+### Graafi objekti loomine
+
+Graafide jaoks defineerib `tidygraph` pakett objekti `tbl_graph`, mis on sisuliselt kaks seotud `tibble` tüüpi objekti, üks tippude ja teine servade jaoks. Seda defineeritakse käsuga `tbl_graph`, millele tuleb ette anda kaks `tibble` või `data.frame` tüüpi objekti. See käsk ootab, et servade failis oleks kaks veergu: `from` ja `to`. Tipu nimed veergudes `from` ja `to` peavad olema olemas ka tippude tabelis mingi tunnusena, mille nimi antakse ette argumendiga `node_key`. Tuleks ka määrata, kas graaf on suunatud või suunamata, argumendiga `directed`.
+
+```{r}
+edges_est = edges_est %>% 
+  rename(from = ArtistName1, to = ArtistName2)
+
+g = tbl_graph(nodes = nodes_est, edges = edges_est, node_key = "ArtistName", directed = F)
+g 
+```
+
+Graafe saab luua ka kasutades naabrusmaatrikseid, kasutades paketi `igraph` fuktsiooni `graph.adjacency` ja muutes selle `tbl_graph` objektiks funktsiooniga `as_tbl_graph`.
+
+```{r}
+library(igraph)
+
+mat = cbind(c(0, 0, 1), c(1, 0, 1), c(1, 0, 0))
+rownames(mat) = c("A", "B", "C")
+colnames(mat) = c("A", "B", "C")
+mat
+
+graph.adjacency(mat) %>% 
+  as_tbl_graph()
+```
+
+### Graafide manipuleerimine
+
+Graafi objekti manipuleerimine tidygraph paketis on väga sarnane tavaliste andmetabelite töötlemisega `tidyverse` abil. Kuna aga graafi objekt koosneb kahest andmetabelist, siis on lisatud käsk nimega `activate`, millega saab ette öelda graafile, kas me plaanime rakendada käske tippude või servade tabelile. Vastavalt siis `activate(nodes)` ja `activate(edges)` aktiveerivad vastavalt tipud ja servad. Peale seda saame rakendada tuttavaid käske nagu näiteks `mutate`.
+
+```{r}
+g %>% 
+  activate(edges) %>% 
+  mutate(VeryPopular = maxPopularity > 40)
+
+g %>% 
+  activate(nodes) %>% 
+  mutate(VeryPopular = ArtistPopularity > 45)
+```
+
+Kui filtreerida tippusid, siis on sellel tagajärjed ka servadele. Nimelt kustutatakse ära ka servad, mille puhul vähemalt üks tipp andmetest välja visatakse. See on mugav, sest nii ei pea muretsema, et kaks tabelit sünkroonist välja lähevad.
+
+```{r}
+g %>% 
+  activate(nodes) %>% 
+  mutate(VeryPopular = ArtistPopularity > 45) %>%
+  filter(VeryPopular == T)
+```
+
+Erinevate `tidyverse` funktsioonide kasutamisel on loomulikult piirid. Näiteks summarize on käsk mille käitumist graafil ei ole võimalik üksühele üle kanda ja seega see antud juhul ei tööta. Küll aga töötavad kõik `*_join` funktsioonid ja on defineeritud graafide liitmine `bind_graph` abil. Loe lähemalt lingilt <https://www.data-imaginist.com/2017/introducing-tidygraph/>.
+
+#### Ülesanded
+
+Loome kaks tabelit
+
+```{r}
+n = tibble(
+  Name = c("A", "B", "C", "D"),
+  Value = 1:4,
+  Class = c("Class1", "Class2", "Class2", "Class2")
+)
+
+e = tibble(
+  Name1 = c("A", "A", "B", "C", "C", "D"),
+  Name2 = c("C", "D", "A", "A", "B", "B")
+)
+```
+
+-   Nende tabelite põhjal looge `tbl_graph` tüüpi objekt. Mõelge, kas antud graaf peaks olema suunatud või suunamata
+
+-   Saadud graafist filtreerige välja alamgraaf mis sisaldab ainult klassi "Class2" kuuluvaid tippe.
+
+## Graafi joonistamine
+
+Graafe joonistame selles praktikumis paketiga `ggraph`, mis on sisliselt laiendus `ggplot2`-le graafi andmete jaoks. Graafik luuakse siin käsuga `ggraph` millele hakatakse siis graafiku elemente liitma. Tippude joonistamiseks on funktsioonid `geom_node_*` ja servade jaoks `geom_edge_*`. Andmepunktide kujutused graafilistele parameetritele antekse ette `geom_` funktsioonide sees, sest me võime tahta sama parameetrit (näit. värv) defineerida nii tippudele kui servadele.
+
+```{r}
+ggraph(g) +
+  geom_node_point() +
+  geom_edge_link()
+```
+
+Antud graaf ei näe väga hea välja, sest automaatselt valitud punktide paigutuse algoritm (stress), ei ole optimaalne. Punktide paigutust võib kontrollida parameetriga `layout`.
+
+Esiteks võib sellele ette anda ühe mitmest paigutus algoritmist, millest mõned on järgnevad:
+
+-   "kk" - Kamada and Kawai jõududel põhinev algoritm
+
+-   "fr" - Fruchterman and Reingold jõududel põhinev algoritm
+
+-   "drl" - järjekordne jõududel põhinev algoritm
+
+-   "gem" - järjekordne jõududel põhinev algoritm
+
+-   "stress" - järjekordne jõududel põhinev algoritm
+
+-   "lgl" - suurtele graafidele sobiv algoritm
+
+-   "mds" - kauguste maatrikil dimensiooni vähendamisega paigutamine
+
+-   "dh" - stohhastilisel lokaalsel otsingul põhinev algoritm
+
+-   "nicely" - proovib valida andmetele vastaval hea algoritmi
+
+-   "circle" - ringi kujuline paigutus
+
+```{r}
+ggraph(g, layout = "fr") +
+  geom_node_point() +
+  geom_edge_link()
+```
+
+Paigutuse võib hea tahtmise korral ka ise ette anda maatriksina.
+
+```{r}
+g  
+
+lo = cbind(runif(78), runif(78))
+
+lo
+
+ggraph(g, layout = lo) +
+  geom_node_point() +
+  geom_edge_link()
+```
+
+Tippude näitamisel, peale punktide väga häid võimalusi pole. Küll aga on erinevaid võimalusi servade joonistamiseks. Kõige kasutatavam on juba eelpool kasutatud `geom_edge_link`, mis tõmbab tippude vahele sirged jooned. Teised võimalused on veel:
+
+-   `geom_edge_arc` - teeb kaare punktide vahele
+
+-   `geom_edge_density` - joone asemel teeb kahe punkti vahelist ala natuke tumedamaks, kasulik, kui graaf on väga suur ja tihe
+
+```{r}
+ggraph(g, layout = "fr") +
+  geom_node_point() +
+  geom_edge_arc()
+
+ggraph(g, layout = "fr") +
+  geom_node_point() +
+  geom_edge_density()
+```
+
+Kui graafid on suunatud saab joontele lisada ka nooli, mida saab spetsifitseerida argumendiga `arrow`, mis omamkorda võtab väärtuseks `arrow` funktsiooni `grid` paketist.
+
+```{r}
+ggraph(g, layout = "fr") +
+  geom_node_point() +
+  geom_edge_link(arrow = grid::arrow(length = unit(0.1, "inches"), type = "closed"))
+```
+
+### Graafil meta-andmete näitamine
+
+Siiani näidatud graafikud on olnud väga mustvalged ning kohati on raske eristada tippe ja servasid. Värvide ja muude parameetrite lisamine käib sisuliselt sama moodi kui ggplot2-s. Sõltuvalt sellest kas parameeter näitab mõne tunnuse väärtusi või on ilu pärast, läheb ta kas funktsiooni aes sisse või jääb sellest välja. Proovime värvi argumendiga.
+
+```{r}
+ggraph(g, layout = "fr") +
+  geom_node_point(color = "red") +
+  geom_edge_link()
+
+ggraph(g, layout = "fr") +
+  geom_node_point(aes(color = ArtistPopularity)) +
+  geom_edge_link()
+```
+
+Paneme tähele, et jooned tõmmatakse punktide peale, sest nende joonistamise käsk tuli pärast tippude oma. Seetõttu on targem järjekorda muuta.
+
+```{r}
+ggraph(g, layout = "fr") +
+  geom_edge_link() +
+  geom_node_point(aes(color = ArtistPopularity)) 
+```
+
+Peamised parameetrid mida muuta on `color`, `shape` (punktidel), `size` (punktidel), `width` (joontel) ja `linetype` (joontel).
+
+```{r}
+ggraph(g, layout = "fr") +
+  geom_edge_link(aes(color = nTracks)) +
+  geom_node_point(aes(size = ArtistFollowers), color = "darkgreen") 
+```
+
+Graafiliste parameetrite skaleerimiseks on loodud erandi funktsioonid, et näiteks tippude ja servade värve saaks eraldi skaleerida. Tippude puhul töötavad tavalised `scale_*` funktsioonid aga servadele on näiteks funktsioonid kujul `scale_edge_*`. Sellegi poolest töötavad need sama moodi kui tavalised `ggplot2` variandid.
+
+```{r}
+ggraph(g, layout = "fr") +
+  geom_edge_link(aes(color = nTracks)) +
+  geom_node_point(aes(size = ArtistFollowers), color = "darkgreen") +
+  scale_edge_color_gradient(low = "pink", high = "red")
+```
+
+Eriti vajalik on skaleerimine serva paksuse kontrollimiseks argumendiga width, mille vaikimisi väärtused on suhteliselt jubedad.
+
+```{r}
+ggraph(g, layout = "fr") +
+  geom_edge_link(aes(color = nTracks, width = maxPopularity)) +
+  geom_node_point(aes(size = ArtistFollowers), color = "darkgreen") +
+  scale_edge_color_gradient(low = "pink", high = "red") 
+
+ggraph(g, layout = "fr") +
+  geom_edge_link(aes(color = nTracks, width = maxPopularity)) +
+  geom_node_point(aes(size = ArtistFollowers), color = "darkgreen") +
+  scale_edge_color_gradient(low = "pink", high = "red") +
+  scale_edge_width(range = c(0, 2))
+```
+
+### Tekstide lisamine graafile
+
+Siiamaani oleme joonistanud küll punktikesi, kuid nende punktide tegelikku identiteeti võime vaid aimata. Et paremini teada saada, mis tippudega on täpsemalt tegu. saame lisada tippudele nimed. Seda saab teha nii funktsiooniga `geom_node_text`, kui `geom_node_label`, mis vastavalt joonistavad lihtsalt teksti või siis kastikesega sildi.
+
+```{r}
+ggraph(g, layout = "fr") +
+  geom_edge_link(aes(width = maxPopularity), color = "grey60") +
+  geom_node_point(aes(size = ArtistFollowers), color = "darkgreen") +
+  scale_edge_width(range = c(0, 2)) +
+  geom_node_text(aes(label = ArtistName))
+
+ggraph(g, layout = "fr") +
+  geom_edge_link(aes(width = maxPopularity), color = "grey60") +
+  geom_node_point(aes(size = ArtistFollowers), color = "darkgreen") +
+  scale_edge_width(range = c(0, 2)) +
+  geom_node_label(aes(label = ArtistName))
+```
+
+Nüüd on aga probleem, et me ei näe enam tippusid , sest need on tekstide taga peidus. Üleüldse on tekste nii palju, et nad ei mahu hästi ekraanile. Kasulik oleks neid kuidagi vähendada. Üks võimalus on näidata ainult mingis mõttes huvitavamaid tekste, näiteks neid artiste kellel on palju jälgijaid. Selleks saame kasutada `geom_*` argumenti `data`, milllele me saame anda ette funktsiooni mis modifitseerib selle kihi andmeid.
+
+```{r}
+ggraph(g, layout = "fr") +
+  geom_edge_link(aes(width = maxPopularity), color = "grey60") +
+  geom_node_point(aes(size = ArtistFollowers), color = "darkgreen") +
+  scale_edge_width(range = c(0, 2)) +
+  geom_node_label(aes(label = ArtistName), data = function(.x){.x %>% filter(ArtistFollowers > 10000)})
+```
+
+Pane tähele, et see funktsioon töötab ainult tippude andmetabelil, sest see on see mille `geom_node_label` ette saab. Et trükkimise vaeva vähendada saab `function(.x){.x %>% filter(ArtistFollowers > 10000)}` väljendada lühemalt kui `~ .x %>% filter(ArtistFollowers > 10000)`. Sellist kuju kasutatakse palju ka tidyverse paketis `purrr`, mis on mõeldud vektorite ja listide töötlemiseks.
+
+```{r}
+ggraph(g, layout = "fr") +
+  geom_edge_link(aes(width = maxPopularity), color = "grey60") +
+  geom_node_point(aes(size = ArtistFollowers), color = "darkgreen") +
+  scale_edge_width(range = c(0, 2)) +
+  geom_node_label(aes(label = ArtistName), data = ~ .x %>% filter(ArtistFollowers > 10000))
+```
+
+Siiski on konkreetsed tipud siltide varjus ja kui silte oleks rohkem, siis kattuksid need ka üle. Et proovida leida siltidele head mitte-ülekattuvad positsioonid võib rakendada argumenti repel, mis proovib optimeerida siltide asukohti.
+
+```{r}
+ggraph(g, layout = "fr") +
+  geom_edge_link(aes(width = maxPopularity), color = "grey60") +
+  geom_node_point(aes(size = ArtistFollowers), color = "darkgreen") +
+  scale_edge_width(range = c(0, 2)) +
+  geom_node_label(aes(label = ArtistName), data = ~ .x %>% filter(ArtistFollowers > 5000))
+
+ggraph(g, layout = "fr") +
+  geom_edge_link(aes(width = maxPopularity), color = "grey60") +
+  geom_node_point(aes(size = ArtistFollowers), color = "darkgreen") +
+  scale_edge_width(range = c(0, 2)) +
+  geom_node_label(aes(label = ArtistName), repel = T, data = ~ .x %>% filter(ArtistFollowers > 5000))
+```
+
+Lõpuks vaatame graafi kujunduselementide muutmist. Siin töötavad tegelikult kõik `ggplot2` `theme_*`funktsioonid aga kuna neil on suur rõhk telgede kujutamisel ning kirjeldamisel, siis graafide jaoks nad liiga head ei ole. Parem on kasutada `theme_void` või `theme_graph`. Konkreetsete elementide muutmiseks saab kasutada `theme` funktsiooni.
+
+```{r}
+ggraph(g, layout = "fr") +
+  geom_edge_link(aes(width = maxPopularity), color = "grey60") +
+  geom_node_point(aes(size = ArtistFollowers), color = "darkgreen") +
+  scale_edge_width(range = c(0, 2)) +
+  geom_node_label(aes(label = ArtistName), repel = T, data = ~ .x %>% filter(ArtistFollowers > 5000)) +
+  theme_bw()
+
+ggraph(g, layout = "fr") +
+  geom_edge_link(aes(width = maxPopularity), color = "grey60") +
+  geom_node_point(aes(size = ArtistFollowers), color = "darkgreen") +
+  scale_edge_width(range = c(0, 2)) +
+  geom_node_label(aes(label = ArtistName), repel = T, data = ~ .x %>% filter(ArtistFollowers > 5000)) +
+  theme_void()
+```
+
+#### Ülesanded
+
+-   Proovi saavutada järgmine pilt.
+
+![](images/Screenshot%202021-03-14%20at%2023.53.26.png)
+
+## Graafi uurimise algoritmid
+
+Graafi struktuurist on võimalik järeldada päris palju huvitavat metainfot, selle info kasutamine võimaldab ka graafe visuaalselt sisukamalt kujutada. Selleks tuleb aga teada kuidas erinevaid graafi algoritme praktikas rakendada.
+
+Kõige lihtsam omadus mille me graaf struktuurist välja saame lugeda on see, kas tipp on ühendatud teiste tippudega või mitte. Selleks on funktsioon `node_is_isolated` mida saab siis rakendada käskude `mutate` või `filter` sees. Pane tähele, et selle käsu töötamiseks peavad olema aktiveeritud tipud. Tippudel on ka palju teisi omadusi mida saab täpsemalt uurida abifailidest `?node_is_isolated`.
+
+```{r}
+g %>% 
+  activate(nodes) %>% 
+  mutate(Isolated = node_is_isolated()) %>% 
+  ggraph(layout = "kk") +
+    geom_edge_link() +
+    geom_node_point(aes(size = Isolated), color = "darkgreen") +
+    scale_size_discrete(range = c(3, 1))
+
+g %>% 
+  activate(nodes) %>% 
+  filter(!node_is_isolated()) %>% 
+  ggraph(layout = "kk") +
+    geom_edge_link() +
+    geom_node_point(color = "darkgreen")
+```
+
+Järgmisen vaatame tippude seoseid konkreetsete tippudega. Kaugust tippudega saab leida käsuga `node_distance_to` ja `node_distance_from`. Suunamata graafi puhul pole suurt vahet kumba kasutada, kuid suunatud graafi puhul tuleb erinevus sisse. Nende käskudega on väga hea eraldada välja alamgraafe, mis keskenduvad ühe punkti ümbrusele. On ka keerukamaid tippude vahelisi suhteid võimalik arvutada ja neid näeb abilehel `?node_distance_to`.
+
+```{r}
+g %>% 
+  activate(nodes) %>% 
+  mutate(dNublu = node_distance_to(ArtistName == "Nublu")) %>% 
+  filter(dNublu < 3) %>% 
+  ggraph(layout = "kk") +
+    geom_edge_link() +
+    geom_node_point(color = "darkgreen") +
+    geom_node_label(aes(label = ArtistName), repel = T, data = ~ .x %>% filter(ArtistName == "Nublu"))
+```
+
+Tipu olulisust graafis võib näidata mitut moodi, kuid kõiki neid lähenemisi võetakse kokku ühe terminiga tsentraalsus. Kõige lihtsam tsentraalsuse mõõt, tipu valents, loeb kokku kõik tipu ühendused. Suunatud graafis võib seda teha nii sisse kui väljapoole ühendustega eraldi. R-s saab seda arvutada käsuga `centrality_degree`. Keerukam tsentraalsusmõõt on *betweenness centrality*, mis mõõdab kui suur osa ühendustest graafi tippude vahel läbib vastavat tippu. Erinevaid algoritme on aga veel (vt `?centrality_degree)`
+
+```{r}
+g %>% 
+  activate(nodes) %>% 
+  mutate(Degree = centrality_degree()) %>% 
+  mutate(Centrality = centrality_degree()) %>% 
+  ggraph(layout = "kk") + 
+    geom_edge_link() + 
+    geom_node_point(aes(size = Degree, color = Centrality)) +
+    geom_node_label(aes(label = ArtistName), data = ~ .x %>% filter(Centrality > 10))
+```
+
+Omadusi võib vaadata ka servadel. Ka nende puhul saab leida servad, mis üheduvad konkreetse tipuga või servasid mis on võrgustikus kesksel kohal. Neid funktsioone saab kasutada käskudega `edge_is_from` ja `centrality_edge_betweenness`.
+
+```{r}
+g %>% 
+  activate(edges) %>% 
+  mutate(eNublu = edge_is_from((g %>% activate(nodes) %>% pull(ArtistName)) == "nublu")) %>% 
+  ggraph(layout = "kk") + 
+    geom_edge_link(aes(width = eNublu)) + 
+    geom_node_point(color = "darkgreen") +
+    scale_edge_width_discrete(range = c(0.2, 1))
+
+g %>% 
+  activate(edges) %>% 
+  mutate(Centrality = centrality_edge_betweenness()) %>% 
+  ggraph(layout = "kk") + 
+    geom_edge_link(aes(width = Centrality)) + 
+    geom_node_point(color = "darkgreen") +
+    scale_edge_width_continuous(range = c(0.2, 1.5))
+```
+
+Greefi tippe on ka kasulik klasterdada, et üles leida loogilised alamgraafid. Lihtsaim klasterdamise viis on leida sidusad alamgraafid, mida saab teha käsuga `group_components`. Keerukamaid kalsterdusi on ka päris palju saadaval ja ühe sellise näiteks võiks olla `group_louvain` (teiste jaoks uuri `?group_louvain`).
+
+```{r}
+g %>% 
+  activate(nodes) %>% 
+  filter(!node_is_isolated()) %>% 
+  mutate(CC = group_components()) %>% 
+  ggraph(layout = "kk") + 
+    geom_edge_link() +
+    geom_node_point(aes(color = CC))  
+
+
+g %>% 
+  activate(nodes) %>% 
+  filter(!node_is_isolated()) %>% 
+  mutate(GL = as.factor(group_louvain())) %>% 
+  ggraph(layout = "kk") + 
+    geom_edge_link() +
+    geom_node_point(aes(color = GL))
+
+```
+
+#### Ülesanded
+
+-   Visualiseeri antud andmestiku kõige suurem sidus komponent. Näita nimedega kõik artistid, kellel on rohkem kui 3 koostööd. Näita punkti tüübiga ära selle selles graafis olevad klastirid (Louvain-i algoritmi järgi)
+
+## Kodune ülesanne
+
+Failis `reddit_graph.RData` on andmed Redditi subredditite kohta kus servadeks on lingid ühes subredditist teise. Nii servade kui tippude kohta on lisainformatsiooni, näiteks mitu korda on lingitud ühest subredditist teise ja milline on keskmine sentiment nendel postitustel (1 on positiivne ja 0 negatiivne). Tippude kohta on antud pealkirjad kirjeldused ja märksõnad. Proovige leida mõni huvitav seos antud graafil ning seda ka graafina visualiseerida.
+
+Esitada tuleks nii graafi genereeriv kood kui ka selgitus, mida te pildilt välja lugesite. Pildi puhul hindan, milliseid võtteid te olete kasutanud pildi ettevalmistamisel, kasutatud võiks olla vähemalt üks element kõigest järgnevast.
+
+-   On leitud sobiv punktide paigutus
+
+-   On muudetud tippude graafilisi omadusi
+
+-   On muudetud servade graafilisi omadusi
+
+-   On näidatud ära huvipakkuvamad tipud nime või mõne muu tekstiga
+
+-   On kasutatud graafi algoritme, andmete eeltöötluseks või graafiliste elementide lisamiseks
+
+Lisaks tehnilisele poolele hindan järelduse ja graafiku kokkulangevust ning graafiku visuaalset vormistust.

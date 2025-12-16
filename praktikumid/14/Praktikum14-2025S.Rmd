@@ -1,0 +1,873 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+## Sissejuhatus
+
+Tänase praktikumi teema on interaktiivsete lahenduste loomine. Interaktiivseid lahendusi luuakse üldiselt kasutades veebitehnoloogiaid nagu HTML, CSS ja JavaScript. Kui lahendus peab teostama ka arvutusi või tegema operatsioone, mida mida kasutades JavaScripti veebilehitsejas otse teha ei saa, siis on vaja seda üles ka serveri osa mis neid arvutusi teostab. Raamistikke mis kogu selle süsteemi (dünaamilised veebileht + server) implementeerimise lihtsamaks muudavad on loodud kõikvõimalike programmeerimiskeelte jaoks. Erandiks ei ole ka R, kus on kasutada raamistik `shiny`, mis võimaldab lihtsaimad veebilehed luua ainult R-i kirjutades ning võimaldades mugavalt R-i arvutusi visualiseerida. Shiny-t me antud praktikumis lähemalt uurimegi.
+
+## Lihtne näide shiny-ga
+
+Vaatleme kõigepealt ühte kõige lihtsamat `shiny` näidet, mis illustreerib kõiki olulisi `shiny` rakenduse osasid.
+
+```{r}
+library(shiny)
+
+# Define UI for app that draws a histogram ----
+ui = fluidPage(
+
+  # App title ----
+  titlePanel("Hello Shiny!"),
+
+  # Sidebar layout with input and output definitions ----
+  sidebarLayout(
+
+    # Sidebar panel for inputs ----
+    sidebarPanel(
+
+      # Input: Slider for the number of bins ----
+      sliderInput(inputId = "bins",
+                  label = "Number of bins:",
+                  min = 1,
+                  max = 50,
+                  value = 30)
+
+    ),
+
+    # Main panel for displaying outputs ----
+    mainPanel(
+
+      # Output: Histogram ----
+      plotOutput(outputId = "distPlot")
+
+    )
+  )
+)
+
+
+server = function(input, output) {
+  output$distPlot <- renderPlot({
+
+    x    = faithful$waiting
+    bins = seq(min(x), max(x), length.out = input$bins + 1)
+
+    hist(x, breaks = bins, col = "#75AADB", border = "white",
+         xlab = "Waiting time to next eruption (in mins)",
+         main = "Histogram of waiting times")
+    })
+
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Näeme ,et sellel rakendusel on defineeritud kaks olulist osa.
+
+-   **UI** - kasutajaliides, mis defineerib mida, kus ja kuidas lehel näidatakse.
+
+-   **Server** - milles toimuvad siis vajalikud arvutused.
+
+Kui me need osada anname ette käsule `shinyApp`, siis tõmmantakse käima veebiserver ja avatakse browseri aken. Niikaua kui seal aknas tegutseda, ei saa R-s mitte midagi muud teha. Kui aken kinni panna saab R-is jälle tegevusi jätkata.
+
+Hakkame ükshaaval neid shiny rakenduse elemente läbi käima
+
+## UI defineerimine
+
+### Elementide lisamine lehele
+
+Alustame UI nullist üles ehitamist. Selleks defineerime tühja rakenduse.
+
+```{r}
+
+ui = fluidPage(
+  
+)
+
+server = function(input, output) {
+  
+}
+
+# Run the app ----
+shinyApp(ui = ui, server = server)
+```
+
+Paneme tähele, et ui on defineeritud kui funktsioooni `fluidPage` väljakutse. Sinna sulgude vahele võib lisada leheküljele elemente. Näiteks `titlePanel` ja erinevad html elemendid nagu `h1`, `h2`, `h3`, `p`, `br`, `hr` jne. Neid võib panna järjest nii palju kui kulub. Eraldi funktsioonid defineeriva alampaigutusi näiteks `sidebarLayout`. Proovime neid järgi
+
+```{r}
+ui = fluidPage(
+  titlePanel("Minu äpp"),
+  h1("Pealkiri1"),
+  h4("Pealkiri 4"),
+  hr(),
+  p("Siin on lihtsalt üks paragrahv")
+)
+
+server = function(input, output) {
+  
+}
+
+# Run the app ----
+shinyApp(ui = ui, server = server)
+```
+
+HTML elementidele saab lisada neid samu argumente mida vastavad HTML elemendid muidu vastu võtavad. Loe lähemalt [\<https://shiny.rstudio.com/articles/html-tags.html\>](https://shiny.rstudio.com/articles/html-tags.html){.uri}.
+
+```{r}
+ui = fluidPage(
+  h1("Pealkiri"),
+  p("Keskel", align = "center"),
+  p(strong("Paks tekst")),
+  div("Sinine tekst",  style = "color:blue"),
+  p("span võimaldab muuta ainult ", span(" teksti osa", style = "color:grey"), " omadusi mis on paragrahvi sees"),
+  code("Mina olen robot"),
+)
+
+server = function(input, output) {
+  
+}
+
+# Run the app ----
+shinyApp(ui = ui, server = server)
+```
+
+### Paigutus
+
+Praegu pandi kõik elemendid lihtsalt üksteise järgi ühte kohta. Kuid lehte on võimalik ka jagada loogilisteks jaotusteks. Väga üldine viis selleks on defineerida ridasid ja veerge käskudega `fluidRow` ja `column`. Kõigepealt defineerime rea ning selle saame omakorda jagada veergudeks. Kasutatakse süsteemi, kus üks rida jaotatakse 12 ühikuks ning igale veerule anname ette, kui mitu ühikut see lai peab olema.
+
+```{r}
+ui = fluidPage(
+  fluidRow(
+    column(
+      width = 3,
+      h2("Veerg 1", style = "background:lightgrey")
+    ),
+    column(
+      width = 5,
+      h2("Veerg 2", style = "background:lightgrey")
+    ),
+    column(
+      width = 4,
+      h2("Veerg 3", style = "background:lightgrey")
+    )
+  )
+)
+
+server = function(input, output){
+  
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Enamasti on shiny rakendused sellised kus lehe ühes osas on elemendid millega visualisatsiooni kontrollida ja teises siis kontrollitav visualisatsioon. Sellise paigutuse saab näiteks funktsiooniga `sidebarLayout`, mille puhul tuleb defineerida `sidebarPanel` ja `mainPanel`. Mõlema paneeli funktsiooni sisse saame me jällegi lisada komadega eraldatult HTML elemente, ka näiteks `fluidRow`. Sidebari asukohta saab kontrollida argumendiga `position.`
+
+```{r}
+ui = fluidPage(
+  titlePanel("Minu äpp"),
+  sidebarLayout(
+    position = "right",
+    sidebarPanel(
+      h1("Sidebar Panel")
+    ),
+    mainPanel(
+      h1("Main panel")
+    )
+  )
+)
+
+server = function(input, output) {
+  
+}
+
+# Run the app ----
+shinyApp(ui = ui, server = server)
+```
+
+Saab teha ka keerukamaid paigutusi, näiteks lisada sakid käsuga `tabsetPanel`, kus iga saki alla saab defineerida ise lehe käsuga `tabPanel`. Nii on võimalik näidata mitut erinevat visualisatsiooni sama andmestiku kohta.
+
+```{r}
+ui = fluidPage(
+  titlePanel("Minu äpp"),
+  sidebarLayout(
+    sidebarPanel(
+      h1("Sidebar Panel")
+    ),
+    mainPanel(
+      tabsetPanel(
+        tabPanel(
+          "Tab 1",
+          p("Here is Tab 1 information")
+        ),
+        tabPanel(
+          "Tab 2",
+          p("Here is Tab 2 information")
+        )
+      )
+    )
+  )
+)
+
+server = function(input, output) {
+  
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Väga hea ülevaate kõigist võimalustest saab lehelt <https://shiny.rstudio.com/articles/layout-guide.html>.
+
+#### Ülesanne
+
+-   Tekita rakendus järgmise kujundusega. Teksti ei pea ümber trükkima ja horisontaalse joone annab `hr`. Lorem ipsumi teksti saab genereerida näiteks lingil <https://www.lipsum.com/>.
+
+![](images/Screenshot%202021-04-04%20at%2018.49.38.png)
+
+```{r}
+ui = fluidPage(
+  fluidRow(
+    column(
+      width = 12,
+      h2("Veerg 1", style = "background:lightgrey")
+    ),
+    column(
+      width = 12,
+      h2("Veerg 2", style = "background:lightgrey")
+    ),
+    column(
+      width = 12,
+      h2("Veerg 3", style = "background:lightgrey")
+    )
+  ),
+
+    mainPanel(
+      tabsetPanel(
+        tabPanel(
+          "Tab 1",
+          p("birthrate and life expectancy")
+        ),
+        tabPanel(
+          "Tab 2",
+          p("Birthrare and income class")
+        )
+      )
+    )
+)
+
+server = function(input, output) {
+  
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+### Kontrolli elemendid
+
+Selleks, et kontrollida kuidas meie rakendus käitub ja kuidas ta andmeid näitab on võimalik valida mitme graafilise elemendi seast. Eelnevalt nägime liugurit, kuid võimalusi on veel mitmeid. Järgnev pilt annab ülevaate kõigist valikutest.
+
+![](https://shiny.rstudio.com/tutorial/written-tutorial/lesson3/images/basic-widgets.png)
+
+Seda kuidas nendest valikutest saadavat infot kasutada vaatame hiljem, kuid proovime esialgu neid kontrolle oma rakendusse lisada. Funktsioonid konkreetsete elementide lisamiseks on järgnevad
+
+|                      |                                           |
+|----------------------|-------------------------------------------|
+| `actionButton`       | Nupp                                      |
+| `checkboxGroupInput` | Valikute grupp                            |
+| `checkboxInput`      | Üksik valik                               |
+| `dateInput`          | Kalender kuupäeva valimiseks              |
+| `dateRangeInput`     | Kalendrite paar kuupäevavahemiku valikuks |
+| `fileInput`          | Faili üleslaadimine                       |
+| `helpText`           | Abitekst                                  |
+| `numericInput`       | Väli numbri sisestamiseks                 |
+| `radioButtons`       | Raadionupp                                |
+| `selectInput`        | Valik                                     |
+| `sliderInput`        | Liugur                                    |
+| `submitButton`       | Submit nupp                               |
+| `textInput`          | Teksti sisestus väli                      |
+
+Kõikidel funktsioonidel on esimene argument vastava elemendi nimi, mida on hiljem vaja väärtuste kasutamisel.
+
+```{r}
+ui = fluidPage(
+  titlePanel("Basic widgets"),
+  fluidRow(
+    column(
+      3,
+      h3("Buttons"),
+      actionButton("action", "Action"),
+      br(),
+      br(), 
+      submitButton("Submit")
+    ),
+    column(
+      3,
+      h3("Single checkbox"),
+      checkboxInput("checkbox", "Choice A", value = TRUE)
+    ),
+    column(
+      3, 
+      checkboxGroupInput(
+        "checkGroup", 
+        h3("Checkbox group"), 
+        choices = list(
+          "Choice 1" = 1, 
+          "Choice 2" = 2, 
+          "Choice 3" = 3
+        ),
+        selected = 1
+      )
+    ),
+    
+    column(
+      3, 
+      dateInput(
+        "date", 
+        h3("Date input"), 
+        value = "2014-01-01"
+      )
+    )   
+  ),
+  fluidRow(
+    column(
+      3,
+      dateRangeInput("dates", h3("Date range"))
+    ),
+    column(
+      3,
+      fileInput("file", h3("File input"))
+    ),
+    column(
+      3, 
+      h3("Help text"),
+      helpText(
+        "Note: help text isn't a true widget,", 
+        "but it provides an easy way to add text to",
+        "accompany other widgets."
+      )
+    ),
+    column(
+      3, 
+      numericInput(
+        "num", 
+        h3("Numeric input"), 
+        value = 1
+      )
+    )   
+  ),
+  
+  fluidRow(
+    column(
+      3,
+      radioButtons(
+        "radio", 
+        h3("Radio buttons"),
+        choices = list(
+          "Choice 1" = 1, 
+          "Choice 2" = 2,
+          "Choice 3" = 3
+        ),
+        selected = 1
+      )
+    ),
+    column(
+      3,
+      selectInput(
+        "select", 
+        h3("Select box"), 
+        choices = list(
+          "Choice 1" = 1, 
+          "Choice 2" = 2,
+          "Choice 3" = 3
+        ), 
+        selected = 1
+      )
+    ),
+    column(
+      3, 
+      sliderInput(
+        "slider1", 
+        h3("Sliders"),
+        min = 0, 
+        max = 100, 
+        value = 50
+      ),
+      sliderInput(
+        "slider2", 
+        "",
+        min = 0, 
+        max = 100, 
+        value = c(25, 75)
+      )
+    ),
+    column(
+      3, 
+      textInput(
+        "text", 
+        h3("Text input"), 
+        value = "Enter text..."
+      )
+    )   
+  )
+  
+)
+
+server = function(input, output) {
+  
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+#### Ülesanne
+
+-   Lisage eelnevas ülesandes defineeritud paigutusele kontrollid järgnevalt.
+
+![](images/Screenshot%202021-04-04%20at%2018.51.47.png)
+
+## Suhtlus R-ga
+
+Suhtlus R-ga käib läbi läbi `server` funktsiooni, millele on kaks argumenti `input` ja `output`. Mõlemad argumendid on R listid. List `input` sisaldab kõikide kontrollielementide väärtusi vastavalt kontrollelemendi identifikaatorile. List `output` sisaldab kõiki neid elemente, mida me tahame kasutajaliideses näidata. Iga väljund element on defineeritud mõne `render*` käsuga näiteks `renderPrint`, `renderPlot` või `renderTable`. Kasutajaliidese disainis tuleks neid siis kuvada vastava `*Output` funktsiooniga, näiteks `textOutput`, `plotOutput` või `tableOutput`. Vaatame näidet.
+
+```{r}
+ui = fluidPage(
+  sliderInput(
+    "slider", 
+    "",
+    min = 0, 
+    max = 100, 
+    value = c(25, 75)
+  ),
+  hr(),
+  textOutput("slider_parameters")
+  
+)
+
+server = function(input, output){
+  output$slider_parameters = renderPrint({input$slider})
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Lehel <https://shiny.rstudio.com/gallery/widget-gallery.html> on toodud ära milline on iga konkreetse kontrolli väljund R-is.
+
+Näeme, et kui muudame väärtusi kontrollil muutuvad väärtused ka kasutajaliideses. Seda saame ära kasutada, et teha R-is arvutusi dünaamiliselt. Erinevad output tüübid mida `shiny` lubab kasutada on järgmised.
+
+|                      |            |
+|----------------------|------------|
+| `htmlOutput`         | puhas HTML |
+| `imageOutput`        | pilt       |
+| `plotOutput`         | R joonis   |
+| `tableOutput`        | tabel      |
+| `textOutput`         | tekst      |
+| `uiOutput`           | puhas HTML |
+| `verbatimTextOutput` | tekst      |
+
+Vastavad render funktsioonid on järgnevad.
+
+|               |                        |
+|---------------|------------------------|
+| `renderImage` | pildid failist         |
+| `renderPlot`  | R joonis               |
+| `renderPrint` | R-i objekti väljatrükk |
+| `renderTable` | tabel                  |
+| `renderText`  | tekst                  |
+| `renderUI`    | puhas HTML             |
+
+Proovime panna R joonise lehele.
+
+```{r}
+load("countries.RData")
+
+ui = fluidPage(
+  sliderInput(
+    "slider", 
+    label = "Happiness index",
+    min = 0, 
+    max = 1, 
+    value = c(.25, 0.75)
+  ),
+  hr(),
+  plotOutput("plot")
+  
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+      ggplot(aes(x = life_expectancy, y = child_per_woman, color = region), data = countries) +
+        geom_point()
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Hetkel see joonis ei allu kontrollile. Kuid seda saame saavutada, kui kasutame andmestiku töötlusel liuguri poolt defineeritud väärtuste vahemikke.
+
+```{r}
+load("countries.RData")
+
+ui = fluidPage(
+  sliderInput(
+    "slider", 
+    label = "Happiness index",
+    min = 0, 
+    max = 1, 
+    value = c(.25, 0.75)
+  ),
+  hr(),
+  plotOutput("plot")
+  
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+    countries %>% 
+      filter((happiness_index > input$slider[1]) & (happiness_index < input$slider[2])) %>% 
+      ggplot(aes(x = life_expectancy, y = child_per_woman, color = region)) +
+        geom_point()
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Seda viisi, kuidas shiny uuendab ainult neid lehekülje elemente mille puhul me väärtust muudame nimetatakse shiny kõnepruugis *reaktiivsuseks*. Mitte iga koodirida mille me server funktsiooni kirjutame ei ole reaktiivne. Seda on ainult `render*` funktsioonides olev kood. Kogu kood, mis kasutab `input` objekti peab asuma reaktiivses keskkonnas (muidu saame errori).
+
+```{r}
+load("countries.RData")
+
+ui = fluidPage(
+  sliderInput(
+    "slider", 
+    label = "Happiness index",
+    min = 0, 
+    max = 1, 
+    value = c(.25, 0.75)
+  ),
+  hr(),
+  plotOutput("plot")
+  
+)
+
+server = function(input, output){
+ d = countries %>%
+    filter((happiness_index > input$slider[1]) & (happiness_index < input$slider[2]))
+  
+  output$plot = renderPlot({
+    d %>% 
+      ggplot(aes(x = life_expectancy, y = child_per_woman, color = region)) +
+        geom_point()
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Käskude `render*` sees olev R-i ekspressioon ei pea olema üherealine, sinna võib panna ka pikema arvutuse ja tulemuseks loetakse ainult viimase rea väärtust.
+
+```{r}
+load("countries.RData")
+
+ui = fluidPage(
+  radioButtons(
+    "facet_radio",
+    label = "Facet by income groups",
+    choices = list(
+      "Yes" = "yes",
+      "No" = "no"
+    ),
+    selected = "no"
+  ),
+  hr(),
+  plotOutput("plot")
+)
+
+server = function(input, output){
+  output$plot = renderPlot({
+   p = countries %>%
+    ggplot(aes(x = life_expectancy, y = child_per_woman, color = region)) +
+      geom_point()
+   
+   if(input$facet_radio == "yes"){
+     p = p + facet_wrap(~ income_groups)
+   }
+   
+   p
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+#### Ülesanne
+
+-   Täiendage eelmist ülesannet nüüd nii, et iga kontrolli muutmisel oleks (õige) mõju ka pildile.
+
+![](images/Screenshot%202021-04-04%20at%2018.51.47-01.png)
+
+## Kodune ülesanne
+
+Kasutades failis `employee.RData` olevat andmestikku `employee` tehke nüüd interaktiivne visualisatsioon. See andmestik kirjeldab ühe suurfirma töötajaid ning nende kohta on toodud terve hulk erinevaid tunnuseid. Sellel shiny rakendusel peaks olema vähemalt 3 erinevat kontrolli, millega parameetreid muuta. Tulemuseks saadav rakendus peaks olema ilusti vormistatud, kontrollid olema sisukad, pilt selge ning kergesti loetav.
+
+```{r}
+# Lae vajalikud teegid
+library(shiny)
+library(ggplot2)
+library(dplyr)
+
+# Tööandmete laadimine (EELDUSEL, et employee.RData asub samas kaustas)
+# LAADI FAIL: asenda see rida vastavalt vajadusele, kui andmestik on juba laetud
+load("employee.RData")
+
+# Andmestiku esialgne ettevalmistus (vajalik, kui andmestik pole tibble või on faktorid)
+if (!exists("employee")) {
+  stop("Andmestik 'employee' ei ole laetud. Kontrollige failinime employee.RData.")
+}
+employee <- as.data.frame(employee)
+employee$JobRole <- as.factor(employee$JobRole)
+employee$Department <- as.factor(employee$Department)
+employee$Gender <- as.factor(employee$Gender)
+employee$EducationField <- as.factor(employee$EducationField)
+
+
+# --- 1. Kasutajaliidese (UI) defineerimine ---
+ui <- fluidPage(
+  
+  # Rakenduse pealkiri
+  titlePanel("Töötajate andmestiku interaktiivne analüüs"),
+  
+  # Külgriba paigutus (sisendkontrollide jaoks)
+  sidebarLayout(
+    sidebarPanel(
+      
+      h3("Visualisatsiooni parameetrid"),
+      
+      # KONTROLL 1: Valikuline tunnus X-teljele
+      selectInput(
+        inputId = "x_var",
+        label = "Vali tunnus X-teljele:",
+        choices = c("Age", "TotalWorkingYears", "MonthlyIncome", "YearsAtCompany", "DistanceFromHome"),
+        selected = "MonthlyIncome"
+      ),
+      
+      # KONTROLL 2: Valikuline tunnus värvi/grupeerimise jaoks (faktor/kategooria)
+      selectInput(
+        inputId = "color_group",
+        label = "Vali grupeeriv tunnus (värv):",
+        choices = c("Gender", "Department", "JobRole", "MaritalStatus", "EducationField", "BusinessTravel"),
+        selected = "Department"
+      ),
+      
+      # KONTROLL 3: Liugur vanuse filtreerimiseks
+      sliderInput(
+        inputId = "age_range",
+        label = "Filtreeri töötajad vanuse järgi:",
+        min = min(employee$Age, na.rm = TRUE),
+        max = max(employee$Age, na.rm = TRUE),
+        value = c(min(employee$Age, na.rm = TRUE), max(employee$Age, na.rm = TRUE)),
+        step = 1
+      ),
+      
+      # Lisan teise liuguri kontrolliks 4 (valikuline lisapunkt)
+      sliderInput(
+        inputId = "years_at_company",
+        label = "Filtreeri ametis oldud aastate järgi:",
+        min = min(employee$YearsAtCompany, na.rm = TRUE),
+        max = max(employee$YearsAtCompany, na.rm = TRUE),
+        value = c(0, max(employee$YearsAtCompany, na.rm = TRUE)),
+        step = 1
+      )
+      
+    ),
+    
+    # Peamine paneel (visualisatsiooni jaoks)
+    mainPanel(
+      # Kuvab graafiku
+      plotOutput("employee_plot"),
+      # Lisaks tabel kokkuvõttega
+      h4("Valitud andmete kokkuvõte"),
+      tableOutput("summary_table")
+    )
+  )
+)
+
+# --- 2. Serveri loogika defineerimine ---
+server <- function(input, output) {
+  
+  # 1. Filtreeritud andmestik (reageerib vanuse ja ametiaja filtritele)
+  filtered_data <- reactive({
+    employee %>%
+      filter(Age >= input$age_range[1] & Age <= input$age_range[2]) %>%
+      filter(YearsAtCompany >= input$years_at_company[1] & YearsAtCompany <= input$years_at_company[2])
+  })
+  
+  # 2. Graafiku loomine (reageerib X-telje ja värv/grupeerimiskontrollidele)
+  output$employee_plot <- renderPlot({
+    
+    data_to_plot <- filtered_data()
+    
+    # Andmete valideerimine
+    if (nrow(data_to_plot) == 0) {
+      return(ggplot() + labs(title = "Andmeid pole valitud kriteeriumite alusel."))
+    }
+    
+    # Loome hajutusdiagrammi (scatter plot), kus Y-teljeks on MonthlyIncome
+    p <- ggplot(data_to_plot, aes_string(x = input$x_var, y = "MonthlyIncome", color = input$color_group)) +
+      geom_point(alpha = 0.7, size = 3) + 
+      geom_smooth(method = "lm", se = FALSE, linewidth = 0.5) + # Lisame regressioonisirge
+      labs(
+        title = paste("Kuu sissetuleku vs", input$x_var, "analüüs"),
+        x = input$x_var,
+        y = "Kuu sissetulek (MonthlyIncome)",
+        color = input$color_group
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(hjust = 0.5, face = "bold"),
+        legend.position = "bottom"
+      )
+    
+    print(p)
+  })
+  
+  # 3. Kokkuvõtte tabel (reageerib filtritele ja grupeerimiskontrollile)
+  output$summary_table <- renderTable({
+    
+    # Loome kokkuvõtte MonthlyIncome kohta valitud grupi järgi
+    filtered_data() %>%
+      group_by_at(input$color_group) %>%
+      summarise(
+        Töötajate_arv = n(),
+        Keskmine_sissetulek = round(mean(MonthlyIncome, na.rm = TRUE), 0),
+        Min_sissetulek = min(MonthlyIncome, na.rm = TRUE),
+        Max_sissetulek = max(MonthlyIncome, na.rm = TRUE)
+      ) %>%
+      rename("Grupp" = 1) # Muudame esimese veeru nime (mis on grupeeritud tunnus)
+    
+  })
+}
+
+# --- 3. Shiny rakenduse käivitamine ---
+shinyApp(ui = ui, server = server)
+```
+
+```{r}
+library(shiny)
+library(ggplot2)
+library(dplyr)
+
+load("employee.RData") 
+
+if (!exists("employee")) {
+  stop("Andmestik 'employee' ei ole laetud. Kontrollige failinime employee.RData.")
+}
+employee <- as.data.frame(employee)
+employee$JobRole <- as.factor(employee$JobRole)
+employee$Department <- as.factor(employee$Department)
+employee$Gender <- as.factor(employee$Gender)
+employee$EducationField <- as.factor(employee$EducationField)
+
+
+ui <- fluidPage(
+  
+  titlePanel("Töötajate andmestiku interaktiivne visualisatsioon"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      
+      h3("Visualisatsiooni parameetrid"),
+      
+      selectInput(
+        inputId = "x_var",
+        label = "Vali tunnus X-teljele:",
+        choices = c("Age", "TotalWorkingYears", "MonthlyIncome", "YearsAtCompany", "DistanceFromHome"),
+        selected = "MonthlyIncome"
+      ),
+      
+      selectInput(
+        inputId = "color_group",
+        label = "Grupeeriv tunnus:",
+        choices = c("Gender", "Department", "JobRole", "MaritalStatus", "EducationField", "BusinessTravel"),
+        selected = "Department"
+      ),
+      
+      sliderInput(
+        inputId = "age_range",
+        label = "Filtreeri töötajad vanuse järgi:",
+        min = min(employee$Age, na.rm = TRUE),
+        max = max(employee$Age, na.rm = TRUE),
+        value = c(min(employee$Age, na.rm = TRUE), max(employee$Age, na.rm = TRUE)),
+        step = 1
+      ),
+      
+      sliderInput(
+        inputId = "years_at_company",
+        label = "Filtreeri ametis oldud aastate järgi:",
+        min = min(employee$YearsAtCompany, na.rm = TRUE),
+        max = max(employee$YearsAtCompany, na.rm = TRUE),
+        value = c(0, max(employee$YearsAtCompany, na.rm = TRUE)),
+        step = 1
+      )
+      
+    ),
+    
+    mainPanel(
+      plotOutput("employee_plot"),
+      h4("Valitud andmete kokkuvõte"),
+      tableOutput("summary_table")
+    )
+  )
+)
+
+server <- function(input, output) {
+  
+  filtered_data <- reactive({
+    employee %>%
+      filter(Age >= input$age_range[1] & Age <= input$age_range[2]) %>%
+      filter(YearsAtCompany >= input$years_at_company[1] & YearsAtCompany <= input$years_at_company[2])
+  })
+  
+  output$employee_plot <- renderPlot({
+    
+    data_to_plot <- filtered_data()
+    
+    if (nrow(data_to_plot) == 0) {
+      return(ggplot() + labs(title = "Andmeid pole valitud parameetrite alusel."))
+    }
+    
+    p <- ggplot(data_to_plot, aes_string(x = input$x_var, y = "MonthlyIncome", color = input$color_group)) +
+      geom_point(alpha = 0.7, size = 3) + 
+      geom_smooth(method = "lm", se = FALSE, linewidth = 0.5) + 
+      labs(
+        title = paste("Kuu sissetuleku vs", input$x_var, "analüüs"),
+        x = input$x_var,
+        y = "Kuu sissetulek (MonthlyIncome)",
+        color = input$color_group
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(hjust = 0.5, face = "bold"),
+        legend.position = "bottom"
+      )
+    
+    print(p)
+  })
+  
+  output$summary_table <- renderTable({
+    
+    filtered_data() %>%
+      group_by_at(input$color_group) %>%
+      summarise(
+        Töötajate_arv = n(),
+        Keskmine_sissetulek = round(mean(MonthlyIncome, na.rm = TRUE), 0),
+        Min_sissetulek = min(MonthlyIncome, na.rm = TRUE),
+        Max_sissetulek = max(MonthlyIncome, na.rm = TRUE)
+      ) %>%
+      rename("Grupp" = 1) 
+    
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```

@@ -291,6 +291,152 @@ Kasutades failis employee.RData olevat andmestikku employee tehke nüüd interak
 
 ```{r}
 
+library(shiny)
+library(ggplot2)
+library(dplyr)
+
+load("employee.RData") 
+
+if (!exists("employee")) {
+  stop("Andmestik 'employee' ei ole laetud.")
+}
+employee <- as.data.frame(employee)
+employee$JobRole <- as.factor(employee$JobRole)
+employee$Department <- as.factor(employee$Department)
+employee$Gender <- as.factor(employee$Gender)
+employee$EducationField <- as.factor(employee$EducationField)
+
+translation_map <- list(
+  # X-telje valikud
+  "Age" = "Vanus",
+  "TotalWorkingYears" = "Tööstaaž kokku",
+  "MonthlyIncome" = "Kuu sissetulek",
+  "YearsAtCompany" = "Aastad firmas",
+  "DistanceFromHome" = "Kaugus kodust",
+  
+  # Grupeerimise valikud
+  "Gender" = "Sugu",
+  "Department" = "Osakond",
+  "JobRole" = "Amet",
+  "MaritalStatus" = "Perekonnaseis",
+  "EducationField" = "Haridus",
+  "BusinessTravel" = "Ärireisid"
+)
+
+get_label <- function(var_name) {
+  ifelse(var_name %in% names(translation_map), translation_map[[var_name]], var_name)
+}
+
+
+ui <- fluidPage(
+  
+  titlePanel("Töötajate andmestiku interaktiivne visualisatsioon"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      
+      h3("Visualisatsiooni parameetrid"),
+      
+      selectInput(
+        inputId = "x_var",
+        label = get_label("YearsAtCompany"),
+        choices = setNames(
+          c("Age", "TotalWorkingYears", "MonthlyIncome", "YearsAtCompany", "DistanceFromHome"),
+          sapply(c("Age", "TotalWorkingYears", "MonthlyIncome", "YearsAtCompany", "DistanceFromHome"), get_label)
+        ),
+        selected = "Age"
+      ),
+      
+      selectInput(
+        inputId = "color_group",
+        label = "Vali grupeeriv tunnus:",
+        choices = setNames(
+          c("Gender", "Department", "JobRole", "MaritalStatus", "EducationField", "BusinessTravel"),
+          sapply(c("Gender", "Department", "JobRole", "MaritalStatus", "EducationField", "BusinessTravel"), get_label)
+        ),
+        selected = "Department"
+      ),
+      
+ 
+      sliderInput(
+        inputId = "age_range",
+        label = paste("Filtreeri töötajad vanuse järgi:"),
+        min = min(employee$Age, na.rm = TRUE),
+        max = max(employee$Age, na.rm = TRUE),
+        value = c(min(employee$Age, na.rm = TRUE), max(employee$Age, na.rm = TRUE)),
+        step = 1
+      ),
+      
+
+      sliderInput(
+        inputId = "years_at_company",
+        label = "Filtreeri ametis oldud aastate järgi:",
+        min = min(employee$YearsAtCompany, na.rm = TRUE),
+        max = max(employee$YearsAtCompany, na.rm = TRUE),
+        value = c(0, max(employee$YearsAtCompany, na.rm = TRUE)),
+        step = 1
+      )
+      
+    ),
+    
+    mainPanel(
+      plotOutput("employee_plot"),
+      h4("Valitud andmete kokkuvõte"),
+      tableOutput("summary_table")
+    )
+  )
+)
+
+server <- function(input, output) {
+  
+  filtered_data <- reactive({
+    employee %>%
+      filter(Age >= input$age_range[1] & Age <= input$age_range[2]) %>%
+      filter(YearsAtCompany >= input$years_at_company[1] & YearsAtCompany <= input$years_at_company[2])
+  })
+  
+  output$employee_plot <- renderPlot({
+    
+    data_to_plot <- filtered_data()
+    
+    if (nrow(data_to_plot) == 0) {
+      return(ggplot() + labs(title = "Andmeid pole valitud parameetrite alusel."))
+    }
+    
+    p <- ggplot(data_to_plot, aes_string(x = input$x_var, y = "MonthlyIncome", color = input$color_group)) +
+      geom_point(alpha = 0.7, size = 3) + 
+      geom_smooth(method = "lm", se = FALSE, linewidth = 0.5) + 
+      labs(
+        title = paste(get_label("MonthlyIncome"), "vs", get_label(input$x_var)),
+        x = get_label(input$x_var),
+        y = get_label("MonthlyIncome"),
+        color = input$color_group
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(hjust = 0.5, face = "bold"),
+        legend.position = "bottom"
+      )
+    
+    print(p)
+  })
+  
+  output$summary_table <- renderTable({
+    
+    filtered_data() %>%
+      group_by_at(input$color_group) %>%
+      summarise(
+        töötajate_arv = n(),
+        keskmine_sissetulek = round(mean(MonthlyIncome, na.rm = TRUE), 0),
+        miinmum_sissetulek = min(MonthlyIncome, na.rm = TRUE),
+        maksimum_sissetulek = max(MonthlyIncome, na.rm = TRUE)
+      ) %>%
+      rename("grupp" = 1) 
+    
+  })
+}
+
+shinyApp(ui = ui, server = server)
 ```
 
 ## Ülesanne 6
@@ -300,5 +446,193 @@ Andmestikus `ylevaatused.RData` on meile juba tuttav andmestik Eesti mootorsõid
 Eraldi tuleks välja kirjutada - Stsenaarium kuidas kasutaja antud tööriista kastuada võiks ja millist informatsiooni ta sellest rakendusest saada võiks - Kuidas tehtud disainivalikud võimaldavad kasutajal selle informatsiooni võimalikult efektiivset leidmist
 
 ```{r}
-
+install.packages("shinydashboard")
 ```
+
+```{r}
+library(shiny)
+library(shinydashboard)
+library(ggplot2)
+library(dplyr)
+library(DT)
+
+load("ylevaatused.RData") 
+
+if (!exists("ylevaatused")) {
+  stop("Andmestik 'ylevaatused' ei ole laetud.")
+}
+
+data_processed <- ylevaatused %>%
+  filter(!is.na(ESMANE_REG_AASTA) & YLEVAATUSLIIK == "KORRALINE") %>%
+  mutate(
+    rike_leitud = ifelse(YLEVAATUSOTSUS == "KORRAS", 0, 1)
+  ) %>%
+  group_by(MARK, MUDEL, ESMANE_REG_AASTA) %>%
+  summarise(
+    Kontrollitud_autosid = n(),
+    Rikete_arv = sum(rike_leitud),
+    Rikete_toenaosus = Rikete_arv / Kontrollitud_autosid,
+    .groups = 'drop'
+  ) %>%
+  filter(Kontrollitud_autosid >= 10) 
+
+mark_choices <- sort(unique(data_processed$MARK))
+reg_aasta_choices <- sort(unique(data_processed$ESMANE_REG_AASTA), decreasing = TRUE)
+
+ui <- dashboardPage(
+  skin = "blue",
+  
+  dashboardHeader(title = ""),
+  
+  dashboardSidebar(
+    sidebarMenu(
+      menuItem("Ülevaatused", tabName = "dashboard", icon = icon("car"))
+    ),
+    
+    selectInput("mark_valik", "1. Vali automark:",
+                choices = c("Kõik", mark_choices),
+                selected = "Kõik"),
+    
+    sliderInput("aasta_vahemik", "2. Vali esmase registreerimise vahemik:",
+                min = min(reg_aasta_choices),
+                max = max(reg_aasta_choices),
+                value = c(min(reg_aasta_choices), max(reg_aasta_choices)),
+                step = 1, sep = "")
+  ),
+  
+  dashboardBody(
+    tabItems(
+      tabItem(tabName = "dashboard",
+              fluidRow(
+                valueBoxOutput("keskmine_rikete_toenaosus"),
+                
+                valueBoxOutput("mudelite_arv"),
+                
+                valueBoxOutput("autode_koguarv")
+              ),
+              
+              fluidRow(
+                box(
+                  title = "Rikete tõenäosus mudeliti (Tabeli valiku järgi)",
+                  status = "primary", solidHeader = TRUE, width = 12,
+                  plotOutput("mudeli_graafik", height = 400)
+                )
+              ),
+              
+              fluidRow(
+                box(
+                  title = "Filtreeritud automudelite rikete tõenäosuse tabel",
+                  status = "warning", solidHeader = TRUE, width = 12,
+                  DTOutput("edetabel")
+                )
+              )
+      )
+    )
+  )
+)
+
+server <- function(input, output, session) {
+  
+  filtered_data <- reactive({
+    data <- data_processed %>%
+      filter(ESMANE_REG_AASTA >= input$aasta_vahemik[1] & ESMANE_REG_AASTA <= input$aasta_vahemik[2])
+    
+    if (input$mark_valik != "Kõik") {
+      data <- data %>% filter(MARK == input$mark_valik)
+    }
+    
+    data
+  })
+  
+  output$keskmine_rikete_toenaosus <- renderValueBox({
+    avg_prob <- mean(filtered_data()$Rikete_toenaosus, na.rm = TRUE)
+    valueBox(
+      paste0(round(avg_prob * 100, 1), " %"),
+      "Keskmine rikete tõenäosus (valikus)",
+      icon = icon("percent"),
+      color = if (avg_prob < 0.2) "green" else if (avg_prob < 0.35) "yellow" else "red"
+    )
+  })
+  
+  output$mudelite_arv <- renderValueBox({
+    count <- n_distinct(filtered_data()$MUDEL)
+    valueBox(
+      count,
+      "Unikaalseid mudelid (valikus)",
+      icon = icon("tags"),
+      color = "purple"
+    )
+  })
+  
+  output$autode_koguarv <- renderValueBox({
+    total <- sum(filtered_data()$Kontrollitud_autosid, na.rm = TRUE)
+    valueBox(
+      total,
+      "Kontrollitud sõidukite koguarv (valikus)",
+      icon = icon("calculator"),
+      color = "blue"
+    )
+  })
+  
+  output$edetabel <- renderDT({
+    data <- filtered_data() %>%
+      select(Mark = MARK, Mudel = MUDEL, Reg_Aasta = ESMANE_REG_AASTA, 
+             Kontrollitud_ühikuid = Kontrollitud_autosid, Rikete_tõenäosus = Rikete_toenaosus) %>%
+      mutate(Rikete_tõenäosus = paste0(round(Rikete_tõenäosus * 100, 2), " %")) %>%
+      arrange(desc(Rikete_tõenäosus))
+    
+    datatable(data, 
+              options = list(pageLength = 10, order = list(4, 'desc')),
+              selection = 'single'
+    )
+  })
+  
+  output$mudeli_graafik <- renderPlot({
+    
+    selected_row <- input$edetabel_rows_selected
+    
+    if (length(selected_row) == 0) {
+      data_top <- filtered_data() %>%
+        arrange(desc(Rikete_toenaosus)) %>%
+        slice_head(n = 10)
+      
+      title_text <- "TOP 10 kõrgeima rikketõenäosusega mudelit (valikus)"
+      plot_data <- data_top
+      x_var = "MUDEL"
+      
+    } else {
+      
+      selected_data <- filtered_data()[selected_row,]
+      
+      plot_data <- data_processed %>%
+        filter(MARK == selected_data$MARK, MUDEL == selected_data$MUDEL)
+      
+      title_text <- paste0(selected_data$MARK, " ", selected_data$MUDEL, " rikete tõenäosus aastati")
+      x_var = "ESMANE_REG_AASTA"
+    }
+    
+    ggplot(plot_data, aes_string(x = x_var, y = "Rikete_toenaosus", fill = "Rikete_toenaosus")) +
+      geom_col(position = "dodge") +
+      scale_y_continuous(labels = scales::percent) +
+      scale_fill_gradient(low = "green", high = "red") +
+      labs(
+        title = title_text,
+        x = ifelse(x_var == "ESMANE_REG_AASTA", "Esmane Registreerimisaasta", "Mudel"),
+        y = "Rikete Tõenäosus",
+        fill = "Tõenäosus"
+      ) +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Nätlik stsenaarium:
+
+Analüütik kasutab töölauda, et filtreerida automark (nt. Nissan) ja piirata aasta esmast registreerimise aastat (nt. 2018–2023).
+
+Kastidest tabeli kohal saab ta kohe teada, kas see tootja on tehniliselt parem või halvem kui turu keskmine. all olev tabel annab talle nimekirja kõige probleemsematest mudelitest selles valikus. Kui ta klõpsab tabelis mudelil (nt. Qashqai), näitab graafik, kuidas selle mudeli rikete tõenäosus on aastate lõikes muutunud, aidates tuvastada konkreetseid probleemseid tootmisaastaid.
+
+Kastid annavad kohese KPI ülevaate. Tabel ja graafik on omavahel interaktiivselt seotud, võimaldades kasutajal kiiresti (ühe klõpsuga) liikuda üldisest vaatest tootja kohta konkreetse mudeli detailse alüüsini.
