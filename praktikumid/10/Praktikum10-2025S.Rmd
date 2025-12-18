@@ -80,6 +80,24 @@ as.matrix(tibble(A = 1:5, B = 5:1, C = c("A", "A", "B", "B", "B")))
 
 -   Lahuta X igast reast tema järjekorra number
 
+```{r}
+
+x = matrix(c(1:5, 2:6, 10:6), nrow = 5, ncol = 3) # cbind(1:5, 2:6, 10:6) teeb sama
+#x
+
+rownames(x) = c("R1", "R2", "R3", "R4", "R5")
+colnames(x) = c("V1", "V2", "V3")
+
+
+x = x[, c("V2", "V1", "V3")]
+
+
+x2 = x - 1:5
+
+x
+x2
+```
+
 ## Maatriksite visualiseerimine klasterdatud soojuskaartidega
 
 Selleks et hakata maatrikseid visualiseerima, loeme sisse kõigepealt andmed `test.RData` ning vajalikud paketid millega töötada. Maatriks `test` sisaldab genereeritud geeniekspressiooni andmeid. Nii ridade kui veergude kohta on meil ka meta-andmed, andmetabelid `test_ann_row` ja `test_ann_col`.
@@ -168,6 +186,19 @@ pheatmap(test_mat, display_numbers = T)
 
 ![](images/Screenshot%202021-03-07%20at%2022.17.02.png)
 
+```{r}
+pheatmap(
+  test_mat, 
+  display_numbers = T,
+  breaks = seq(-2, 2, length.out = 38),
+  color = colorRampPalette(c("green", "red"))(38),
+  show_colnames = F,
+  cluster_rows = F,
+  clustering_method = "complete",
+  clustering_distance_cols = "euclidean"
+)
+```
+
 ### Ridade ja veergude annoteerimine
 
 Ridade ja veergude annoteerimiseks tuleb ette anda andmetabelid, mille rea nimesid kasutatakse selleks, et viia kokku andmetabeli read visualiseeritava maatriksi ridade/veergudega. Meie andmetega tulid kaasa tabelid `test_ann_col` ja `test_ann_row`.
@@ -252,6 +283,23 @@ pheatmap(test_mat, cellwidth = 20, cellheight = 40, filename = "Blah.pdf")
 #### Ülesanded
 
 -   Joonistage soojuskaart png faili, nii et selle lahtrid oleks suurusega 25 x 25 ning see kujutaks rakutüübi CT2 andmeid, mis on sorteeritud proovi võtmise aja järgi.
+
+```{r}
+
+tac = test_ann_col %>% 
+  filter(CellType == "CT2") %>%
+  arrange(Time)
+ 
+
+pheatmap(
+  test_mat[, rownames(tac)],
+  cellwidth = 25, 
+  cellheight = 25,
+  annotation_col = tac %>% select(Time),
+  cluster_cols = F,
+  filename = "foo.pdf"
+)
+```
 
 ## Peakomponent analüüs ja t-SNE
 
@@ -369,20 +417,198 @@ Praegu tegime läbi peakomponent analüüsi ja t-SNE ridadel. Nüüd proovime sa
 
 -   Joonista t-SNE graafik veergudele
 
+```{r}
+pca2 = prcomp(t(test_mat))
+
+d = test_ann_col %>%
+  rownames_to_column("Id")
+
+d = bind_cols(d, pca2$x[d$Id,])
+
+ggplot(d, aes(x=PC1, y=PC2, color=CellType)) +
+  geom_point()
+
+#ggplot(d, aes(x=PC1, y=PC2, color=Time)) +
+ # geom_point()
+
+
+d_sdev = tibble(
+  PC = 1:length(pca2$sdev),
+  SDev = pca2$sdev,
+  var = pca2$sdev ** 2
+)
+
+ggplot(d_sdev, aes(x=PC, y=var)) + geom_bar(stat = "identity")
+
+
+
+tsne2 = Rtsne(t(test_mat), perplexity=3)
+
+d_tsne = as.data.frame(tsne2$Y)
+rownames(d_tsne) = colnames(test_mat)
+colnames(d_tsne) = c("C1", "C2")
+
+d = test_ann_col %>%
+  rownames_to_column("Id")
+
+d = bind_cols(d, d_tsne)
+
+ggplot(d, aes(x=C1, y=C2, color=CellType)) +
+  geom_point()
+
+#ggplot(d, aes(x=C1, y=C2, color=Time)) +
+ # geom_point()
+```
+
 ### Koduülesanne
 
-Loe sisse andmestik `PF16_2024.RData`. Maatriks `pf16_mat` sisaldab ühe isiksusetesti vastuseid portsu inimeste kohta. Ridades on inimeste andmed ja veergudes küsimuste vastused viie punktisel skaalal. Kus 1 on "ei ole üldse nõus" ja 5 on "nõustun täielikult". Nii ridade kui veergude kohta on meil ka meta-andmed, andmetabelid `ar` ja `ac`. Küsimuste kohta on teada kategooria ja küsimuse tekst. Inimeste kohta teame nende päritoluriiki, sugu ja vanust.
+Loe sisse andmestik . Maatriks `pf16_mat` sisaldab ühe isiksusetesti vastuseid portsu inimeste kohta. Ridades on inimeste andmed ja veergudes küsimuste vastused viie punktisel skaalal. Kus 1 on "ei ole üldse nõus" ja 5 on "nõustun täielikult". Nii ridade kui veergude kohta on meil ka meta-andmed, andmetabelid `ar` ja `ac`. Küsimuste kohta on teada kategooria ja küsimuse tekst. Inimeste kohta teame nende päritoluriiki, sugu ja vanust.
 
 -   Joonista maatriksist `pf16_mat` soojuskaart ja vasta paari lausega järgmistele küsimustele (40% punktidest)
 
     -   Kas riik või vanus on seotud vastustega küsimustele?
 
+    Mulle tundub, et võib-olla mingi õrn seos aga samas ei erine riikide ega vanuste vahel väga vastused.
+
     -   Kas küsimused grupeeruvad kuidagi vastuste põhjal?
+
+    Seda ma ei julge väita, otsest seost ei tundu olevat.
 
     -   Vihje: kuna annotatsioone on palju kasuta võimalust genereerida graafiku fail, mis on suurem kui Rnotebooki graafiku aken. Samas võiks genereeritud fail siiski olla piisavalt väike, et mahub loetavalt ekraanile.
 
+```{r}
+library(tidyverse)
+library(pheatmap)
+
+load("PF16_2024.RData", verbose = T)
+
+head(pf16_mat, n = 1)
+head(ar, n=5)
+head(ac, n=5)
+```
+
+```{r}
+
+tar = ar %>%
+  arrange(Country, Age) %>%
+  select(Country, Age)
+
+tac = ac %>% 
+  rename(QuestionGroup = QuestionGroupName) %>%
+  select(QuestionGroup)
+
+#pf16_mat_scaled <- t(scale(t(pf16_mat)))
+#pf16_mat = pf16_mat_scaled
+
+pf16_mat_sorted <- pf16_mat[rownames(tar), rownames(tac)]
+
+pheatmap(
+  t(pf16_mat_sorted),
+  show_rownames = T,
+  show_colnames = F,
+  cluster_cols = F,
+  cluster_rows = T,
+  annotation_row = tac,
+  annotation_col = tar,
+  filename = "pf16_mat.pdf",
+  angle_col = 0,
+  fontsize = 4,
+  #scale = "row",
+)
+```
+
 -   Kasutades peakomponentide analüüsi ja t-SNEd uuri kas ka nendel graafikutel tulevad välja seosed vastuste ning riikide, vanuse ja soo vahel. Kirjelda paari lausega mis seosed sa leiad ja kas t-SNE ja peakomponentide analüüs annavad sarnased või erinevad tulemused. (40% punktidest)
 
+```{r}
+
+pca = prcomp(pf16_mat)
+
+d = ar %>% 
+  rownames_to_column("Id")
+
+d = bind_cols(d, as_tibble(pca$x[d$Id, ])) 
+
+ggplot(d, aes(x = PC1, y = PC2, color = Country)) + geom_point()
+ggplot(d, aes(x = PC1, y = PC2, color = Age)) + geom_point()
+ggplot(d, aes(x = PC1, y = PC2, color = Gender)) + geom_point()
+
+d_sdev = tibble(
+  PC = 1:length(pca$sdev),
+  SDev = pca$sdev,
+  Variation = pca$sdev ** 2
+)
+
+ggplot(d_sdev, aes(x = PC, y = Variation)) + geom_bar(stat = "identity")
+```
+
+```{r}
+library(Rtsne)
+
+dups <- duplicated(pf16_mat)
+
+#pf16_mat_unique <- pf16_mat[!dups, ]
+#tsne = Rtsne(pf16_mat_unique, perplexity=5)
+
+tsne = Rtsne(pf16_mat, perplexity=5, check_duplicates = FALSE)
+
+d_tsne = as.data.frame(tsne$Y)
+rownames(d_tsne) = rownames(pf16_mat)
+colnames(d_tsne) = c("C1", "C2")
+
+d = ar %>%
+  rownames_to_column("Id")
+
+d = bind_cols(d, d_tsne)
+
+ggplot(d, aes(x = C1, y = C2, color = Country)) + geom_point()
+ggplot(d, aes(x = C1, y = C2, color = Age)) + geom_point()
+ggplot(d, aes(x = C1, y = C2, color = Gender)) + geom_point()
+```
+
 -   Proovi luua graafik mis toob välja selgelt mingite (mitte kõigi) konkreetsete küsimuste vastamise mustri eri riikides. Et oleks võimalik graafikult selgelt välja lugeda küsimuste sõnastus ja nende vastuste muster erinevatest riikidest pärit inimeste seas. Kirjelda millist seost sa pildilt näed (20% punktidest)
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(tibble)
+source("theme.r")
+
+ac_clean <- ac %>% rownames_to_column(var = "QID")
+
+plot_df <- as.data.frame(pf16_mat[, 1:3]) %>%
+  bind_cols(ar) %>%
+  pivot_longer(
+    cols = c("A1", "A2", "A3"), 
+    names_to = "QID", 
+    values_to = "Score"
+  )
+
+plot_df <- plot_df %>%
+  left_join(ac_clean, by = "QID") %>%
+  mutate(
+    Country = recode(Country, "CA" = "Kanada", "IN" = "India"),
+    Gender = recode(Gender, "Male" = "Mehed", "Female" = "Naised")
+  ) %>%
+  rename(QuestionGroup = QuestionGroupName) 
+  
+
+ggplot(plot_df, aes(x = Age, y = Score, color = Gender)) +
+  geom_jitter(alpha = 0.5, width = 0.2, height = 0.2) +
+  facet_grid(Country ~ Question) + 
+  labs(
+    x = "Vanus",
+    y = "Hinnang",
+    color = "Sugu"
+  ) +
+  theme_swd() +
+  theme(
+    panel.spacing = unit(1.5, "lines"),
+    strip.text.y = element_text(angle = 0, hjust = 0, size = 8),
+    strip.text.x = element_text(size = 8),
+    legend.position = "bottom",
+    legend.title = element_blank()
+  ) 
+```
 
 Joonised peavad olema korrektsed ja selgelt loetavad.
