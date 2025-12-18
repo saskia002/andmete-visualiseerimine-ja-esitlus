@@ -188,9 +188,62 @@ Esitada tuleks nii graafi genereeriv kood kui ka selgitus, mida te pildilt välj
 Lisaks tehnilisele poolele hindan järelduse ja graafiku kokkulangevust ning graafiku visuaalset vormistust.
 
 ```{r}
-
-
+load("reddit_graph.RData", verbose = T)
 ```
+
+```{r}
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(igraph)
+
+load("reddit_graph.RData")
+reddit_graph <- upgrade_graph(reddit_graph)
+
+plot_data <- as_tbl_graph(reddit_graph) %>%
+  activate(nodes) %>%
+  mutate(influence = centrality_pagerank()) %>%
+  top_n(100, influence) %>%
+  mutate(node_label = Node) %>%
+  activate(edges) %>%
+  filter(NPosts > 2) %>% 
+  mutate(sentiment_type = ifelse(AverageSentiment > 0.5, "Positiivne", "Negatiivne")) %>%
+  activate(nodes) %>%
+  #filter(!node_is_isolated()) %>%
+  mutate(community = as.factor(group_walktrap())) # Keyword
+```
+
+```{r}
+p <- ggraph(plot_data, layout = 'linear', circular = T) + 
+  geom_edge_arc(
+    aes(color = sentiment_type, alpha = NPosts), 
+    arrow = arrow(length = unit(1.5, "mm")), 
+    end_cap = circle(3, "mm"),
+    show.legend = FALSE
+  ) + 
+  geom_node_point(aes(size = influence, color = community)) + 
+  geom_node_text(
+    fontface = "bold",
+    aes(label = node_label),
+    #data = ~ .x %>% arrange(desc(influence)) %>% slice_head(n = 50),
+    size = 1,
+    family = "sans",
+    angle = 0,
+    check_overlap = TRUE,
+  ) +
+  scale_size_continuous(range = c(4, 10)) +
+  scale_edge_color_manual(values = c("Positiivne" = "#27ae60", "Negatiivne" = "#e74c3c")) +
+  theme_graph() +
+  labs(title = "Redditi top 100 subredditi võrgustik")
+
+ggsave("reddit_graph.pdf", device = cairo_pdf, plot = p, width = 14, height = 10, dpi = 600)
+```
+
+Esitada tuleks nii graafi genereeriv kood kui ka selgitus, mida te pildilt välja lugesite.
+
+Ma loen graafist välja, et väga sageli lingitakse “bestof” subredditi postitusi teistesse subredditesse ning nende postituste keskmine sentiment on väga positiivne. Minu jaoks oli huvitav, et “vegan” subredditi lingitud postitused “india” subredditis olid negatiivse sentimentiga, kuigi enamik indialasi on veganid. Top 100 seas on palju meelelahutusega seotud subreddite, näiteks “funny” või “gaming”, millel on tugev mõju ka teistele subredditele. Samuti on näha, et “worldnews”, “politics” ja “conspiracy” on omavahel tugevalt seotud.
+
+\
 
 ## Ülesanne 3
 
