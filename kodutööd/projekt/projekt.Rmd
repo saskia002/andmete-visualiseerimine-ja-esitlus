@@ -86,13 +86,15 @@ järjekord <- c(
 graafiku_andmed <- bind_rows(
   loe_andmed(2, 13, "Kõik liiklusõnnetused"),
   loe_andmed(15, 26, "Hukkunuga liiklusõnnetused"),
-  loe_andmed(54, 65, "Hukkunud inimesed"),
-  loe_andmed(67, 78, "Vigasaanud inimesed")
+ # loe_andmed(54, 65, "Hukkunud inimesed"),
+ # loe_andmed(67, 78, "Vigasaanud inimesed")
 )
 
 
 graafiku_andmed$Tüüp <- factor(graafiku_andmed$Tüüp, levels = järjekord)
 ```
+
+graafiku_andmed
 
 ```{r}
 
@@ -119,6 +121,7 @@ graafik <- ggplot(graafiku_andmed, aes(x = Kuupäev, y = Arv, gtoup = Tüüp)) +
     expand = expansion(mult = c(0, 0.1)), 
     breaks = breaks_pretty()
   ) +
+  #geom_vline(xintercept = seq(as.Date("2004-01-01"), as.Date("2025-01-01"), by = "year"), color = "white", linewidth = 0.2) +
   labs(
     title = "Liiklusõnnetuste arv aastaaegade ja aastate lõikes",
     subtitle = "2004-2024",
@@ -131,7 +134,7 @@ graafik <- ggplot(graafiku_andmed, aes(x = Kuupäev, y = Arv, gtoup = Tüüp)) +
     legend.title = element_blank(),
   )
 
-ggsave("liiklusstatistika.pdf", height = 200, units = "mm", dpi = 600)
+ggsave("liiklusstatistika.pdf", height = 100, units = "mm", dpi = 600)
 
 #print(graafik)
 
@@ -150,5 +153,84 @@ ggsave("liiklusstatistika.pdf", height = 200, units = "mm", dpi = 600)
 ```
 
 \
+
+```{r}
+
+library(tidyverse)
+library(lubridate)
+
+graafiku_andmed <- graafiku_andmed %>%
+  mutate(
+    Kuupäev = as.Date(Kuupäev),
+    Kuu = month(Kuupäev, label = TRUE, abbr = FALSE)
+  )
+
+
+arvuta_protsendid <- function(data, tyyp, grupp) {
+  data %>%
+    filter(Tüüp == tyyp) %>%
+    group_by({{ grupp }}) %>%
+    summarise(kokku = sum(Arv, na.rm = TRUE), .groups = "drop") %>%
+    mutate(
+      protsent = 100 * kokku / sum(kokku)
+    ) %>%
+    arrange(desc(protsent))
+}
+
+
+```
+
+```{r}
+koik_aastaajad <- arvuta_protsendid(
+  graafiku_andmed,
+  tyyp = "Kõik liiklusõnnetused",
+  grupp = Aastaaeg
+)
+
+koik_aastaajad
+
+koik_aastaajad %>% slice(1)
+
+```
+
+```{r}
+koik_kuud <- arvuta_protsendid(
+  graafiku_andmed,
+  tyyp = "Kõik liiklusõnnetused",
+  grupp = Kuu
+)
+
+koik_kuud
+
+koik_kuud %>% slice(1)
+
+```
+
+```{r}
+
+koik_aastaajad <- arvuta_protsendid(
+  graafiku_andmed,
+  tyyp = "Hukkunuga liiklusõnnetused",
+  grupp = Aastaaeg
+)
+
+koik_aastaajad
+
+koik_aastaajad %>% slice(1)
+```
+
+```{r}
+
+koik_aastaajad <- arvuta_protsendid(
+  graafiku_andmed,
+  tyyp = "Hukkunuga liiklusõnnetused",
+  grupp = Kuu
+)
+
+koik_aastaajad
+
+koik_aastaajad %>% slice(1)
+```
+
 \
 \
