@@ -1,0 +1,154 @@
+---
+title: "projekt"
+output: html_document
+date: "2026-01-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+rm(list = ls())
+```
+
+—
+
+```{r}
+
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(scales)
+
+
+source("theme.r")
+```
+
+\
+
+```{r}
+
+andmed <- read.csv("andmed.csv") %>%
+  rename_with(~ sub("^X", "", .x)) %>%
+  as_tibble()
+
+
+loe_andmed <- function(algus_rida, lõpp_rida, silt) {
+  andmed %>%
+    slice(algus_rida:lõpp_rida) %>%
+    pivot_longer(
+      cols = matches("^[0-9]{4}$"), 
+      names_to = "Aasta", 
+      values_to = "Arv",
+      values_transform = list(Arv = as.character)
+    ) %>%
+    mutate(
+      Aasta = as.numeric(Aasta),
+      Aastaaeg = case_when(
+        Kuu %in% c("Detsember", "Jaanuar", "Veebruar") ~ "Talv",
+        Kuu %in% c("Märts", "Aprill", "Mai") ~ "Kevad",
+        Kuu %in% c("Juuni", "Juuli", "August") ~ "Suvi",
+        Kuu %in% c("September", "Oktoober", "November") ~ "Sügis"
+      ),
+      Arv = as.numeric(ifelse(Arv == "..", NA, Arv)),
+      Tüüp = silt,
+      Kuu_nr = match(Kuu, c("Jaanuar", "Veebruar", "Märts", "Aprill", "Mai", "Juuni", 
+                            "Juuli", "August", "September", "Oktoober", "November", "Detsember")),
+      Kuupäev = as.Date(paste(Aasta, Kuu_nr, "01", sep = "-"))
+    ) %>%
+    filter(!is.na(Arv), Aasta >= 2004) %>%
+    select(
+      Kuupäev,
+      Aasta,
+      Aastaaeg,
+      Arv,
+      Tüüp
+    ) %>%
+    group_by(Kuupäev, Aasta, Aastaaeg, Tüüp) %>%
+    summarise(
+      Arv = sum(Arv, na.rm = TRUE)
+    )
+}
+```
+
+```{r}
+
+
+järjekord <- c(
+  "Kõik liiklusõnnetused", 
+  "Hukkunuga liiklusõnnetused", 
+  "Hukkunud inimesed",
+  "Vigasaanud inimesed"
+)
+
+graafiku_andmed <- bind_rows(
+  loe_andmed(2, 13, "Kõik liiklusõnnetused"),
+  loe_andmed(15, 26, "Hukkunuga liiklusõnnetused"),
+  loe_andmed(54, 65, "Hukkunud inimesed"),
+  loe_andmed(67, 78, "Vigasaanud inimesed")
+)
+
+
+graafiku_andmed$Tüüp <- factor(graafiku_andmed$Tüüp, levels = järjekord)
+```
+
+```{r}
+
+
+  #geom_smooth(method = "loess", color = "blue", se = TRUE, span = 0.2) +
+#  geom_point(size = 1) +
+
+
+graafik <- ggplot(graafiku_andmed, aes(x = Kuupäev, y = Arv, gtoup = Tüüp)) +
+   geom_rect(aes(xmin = Kuupäev, xmax = Kuupäev + 31, ymin = -Inf, ymax = Inf, fill = Aastaaeg), 
+            alpha = 0.3) +
+  scale_fill_manual(values = c("Talv" = "lightblue", "Kevad" = "forestgreen", "Suvi" = "gold", "Sügis" = "saddlebrown")) +
+  geom_smooth(method = "loess", se = TRUE, color = BLUE4, fill = GRAY7, linewidth = 0.4) +
+  geom_line(color = GRAY1, linewidth = 0.4) +
+  facet_wrap(~Tüüp, ncol = 1, scales = "free_y") +
+  expand_limits(y = 0) +
+  scale_x_date(
+    date_breaks = "2 years", 
+    date_labels = "%Y",
+    limits = c(as.Date("2004-01-01"), as.Date("2025-01-01")),
+    expand = expansion(mult = c(0, 0.0001))
+  ) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.1)), 
+    breaks = breaks_pretty()
+  ) +
+  labs(
+    title = "Liiklusõnnetuste arv aastaaegade ja aastate lõikes",
+    subtitle = "2004-2024",
+    x = "Aasta",
+    y = "Arv",
+    color = ""
+  ) +
+  theme_swd() +
+  theme(
+    legend.title = element_blank(),
+  )
+
+ggsave("liiklusstatistika.pdf", height = 200, units = "mm", dpi = 600)
+
+#print(graafik)
+
+
+
+
+#ggsave(
+ # filename = "liiklusstatistika_A4.pdf", 
+ # plot = graafik,
+ # device = "pdf", 
+ # width = 210,          
+ # height = 297,               
+ # units = "mm", 
+ # dpi = 600             
+#)
+```
+
+\
+\
+\
