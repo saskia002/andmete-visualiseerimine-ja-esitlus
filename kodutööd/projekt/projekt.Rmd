@@ -232,5 +232,12 @@ koik_aastaajad
 koik_aastaajad %>% slice(1)
 ```
 
+```{r}
+
+# suvel surmaga % 
+
+513 / 11648
+```
+
 \
 \
